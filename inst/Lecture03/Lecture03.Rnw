@@ -1,0 +1,620 @@
+\documentclass[compress,handout,t,10pt,fleqn,aspectratio=169]{beamer}
+
+\input{common.tex}
+\input{commonbeamer.tex}
+\togglefalse{byhand}
+%\toggletrue{byhand}
+<<echo=FALSE>>=
+solutions <- TRUE
+knitr::opts_chunk$set(
+  fig.path = "figure/L03-",
+  fig.align = "center",
+  fig.show = "hold",
+  size = "footnotesize",
+  fig.width = 8,
+  fig.height = 8 * 0.6,
+  out.width = "\\linewidth",
+  out.height = "0.6\\linewidth"
+)
+knitr::knit_hooks$set(inline = function(x) {
+  if (is.numeric(x)) {
+    return(knitr:::format_sci(x, "latex"))
+  }
+  highr::hi_latex(x)
+})
+set.seed(12345L)
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(gridExtra))
+theme_set(theme_minimal())
+@
+% Handle solutions inclusion toggle.
+\togglefalse{solutions}
+<<echo=FALSE, results="asis">>=
+if (solutions) {
+  cat("\\toggletrue{solutions}")
+}
+@
+
+\begin{document}
+
+
+\begin{frame}
+  \frametitle{Bayesian statistics, integration \hfill\small(MATH10093)}
+~
+  \vfill
+  ~
+  \begin{itemize}
+  \item Basic Bayesian statistics
+  \begin{itemize}
+  \item Prior, Observations, Posterior, and Bayes' formula
+  \item Computational approaches
+  \item Priors
+  \item Example: Beta\&Binomial
+  \item Credible intervals vs Confidence intervals
+  \end{itemize}
+  \item Integration methods
+  \begin{itemize}
+  \item Deterministic integration
+  \item Monte Carlo integration
+  \end{itemize}
+  \end{itemize}
+  ~
+  \vfill
+  ~
+\end{frame}
+
+
+
+
+\begin{frame}
+\frametitle{Prior, Observations, Posterior; concepts}
+In a basic Bayesian model, the main difference to frequentistic modelling is that
+the unknown parameters are now treated as \emph{unobserved random variables}
+instead of unknown constants.
+\begin{itemize}
+\item The distribution for the parameters is called the
+\emph{prior distribution}.
+\item The observation distribution conditionally on the
+parameters is often referred to as the observation \emph{likelihood}, although
+this terminology is not universally accepted as proper.
+\item The \emph{conditional distribution} for the parameters, given  the observations,
+is called the \emph{posterior distribution}
+\end{itemize}
+\end{frame}
+\begin{frame}
+\frametitle{Prior, Observations, Posterior; mathematical probability theory}
+In mathematical terms, with parameters $\mv{\theta}=(\theta_1,\dots,\theta_m)$
+and observations $\mv{y}=(y_1,\dots,y_n)$:
+\begin{itemize}
+\item Prior density: $\mv{\theta}\sim p_{\mv{\theta}}(\mv{\theta})$, often abbreviated to just $p(\mv{\theta})$.
+If the prior distributions have any (fixed and known) parameters, those are often referred to as \emph{hyper}-parameters.
+\item Conditional observation likelihood/density/probability mass function:
+$(\mv{y}|\mv{\theta})\sim p_{\mv{y}|\mv{\theta}}(\mv{y})$, usually written $p(\mv{y}|\mv{\theta})$.
+\item Posterior density:
+$(\mv{\theta}|\mv{y}) \sim p(\mv{\theta}|\mv{y}) = \frac{p(\mv{\theta},\mv{y})}{p(\mv{y})} =
+\frac{p(\mv{\theta})p(\mv{y}|\mv{\theta})}{p(\mv{y})}
+\quad\text{Bayes' formula}
+$
+\item \emph{Marginal} observation denstity/probability mass function:
+$p(\mv{y}) = \int p(\mv{\theta}, \mv{y}) \md\mv{\theta} = \int p(\mv{\theta})p(\mv{y}|\mv{\theta}) \md\mv{\theta}$
+\end{itemize}
+For discrete variables or parameters, the integrals are replaced by sums.
+\end{frame}
+
+
+
+\begin{frame}
+\frametitle{Computational approaches}
+The Bayesian statistics framework is appealing in that (almost) everything flows
+from general probability theory, once a probabilistic model has been formulated.
+The difficuly lies in how to actually calculate
+the involved densities, expectations, variances, and probabilities.
+
+\begin{itemize}
+\item Analytical derivation; some results are easy to derive by hand (see example on later slide)
+\item Approximate deterministic numerical integration; deterministic integration schemes, Laplace approximation \item Basic simulation and integration; Monte Carlo integration, importance sampling
+\item Advanced simulation and integration; Markov chain Monte Carlo (MCMC) simulation (beyond the scope of this course)
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Priors}
+One of the challenges in Bayesian modelling is how to specify realistic priors.
+\begin{itemize}
+\item One approach is to elicit information from application area experts and encode their \emph{subjective} information as probability distributions.
+\item Other approaches include so called \emph{objective} priors, \emph{vague} priors, and \emph{flat} priors
+(often incorrectly called "uninformative" priors) with the aim of regularising otherwise unstable results but without imposing too strict limitations.
+\item Before the proliferation of computational techniques in the 1990's, and indeed still today, most priors were chosen to be \emph{conjugate}  with respect to the observation distribution (the prior and posterior belong to the same distribution family), to allow analytical solutions. Modern computational methods has removed much of the motivation for such priors; they can simplify calculations, but need not be used if more realistic priors are available.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Example: Binomial observations with Beta prior}
+Consider the following Bayesian model
+(version with a single observation seen in Statistical Methodology lectures)
+for Binomial observations $\mv{y}=(y_1,\dots,y_K)$ with common probability
+parameter $\phi$:
+\begin{itemize}
+\item Parameter prior distribution: $\phi\sim\pBeta(a,b)$ for some \emph{hyper}-parameters $a,b>0$.
+\item Observations: $(y_k|\phi) \sim \pBin(N_k, \phi)$, independent over $k=1,\dots,K$, known $N_k$.
+\item Posterior distribution for $\phi$: $\pBeta\left[a+\sum_{k=1}^K y_k, b+\sum_{k=1}^K (N_k-y_k)\right]$
+\end{itemize}
+Proof: Moving all factors that do not depend on $\phi$ into a normalisation constant, we get
+\begin{align*}
+p(\phi|\mv{y}) &= \frac{p(\phi) p(\mv{y}|\phi)}{p(\mv{y})}
+\propto
+p(\phi) \prod_{k=1}^K p(y_k|\phi)
+=
+\frac{\phi^{a-1}(1-\phi)^{b-1}}{B(a,b)} \prod_{k=1}^K {N_k \choose y_k} \phi^{y_k}(1-\phi)^{N_k-y_k}
+\\&\propto
+\phi^{a-1+\sum_k y_k}(1-\phi)^{b-1+\sum_k (N_k-y_k)} .
+\end{align*}
+This takes the same form as a Beta distribution density (this shows that Beta is
+a conjugate prior for the probability parameter in a Binomial distribution), so the result
+follows by identifying the parameters.
+\end{frame}
+
+
+
+\begin{frame}
+\frametitle{Bayesian credible intervals}
+A Bayesian \emph{$(1-\alpha)\cdot 100$ percent credible interval} $\text{CI}_\theta=(L,U)$ for a parameter $\theta$ is an interval computed from the posterior distribution, such that $\pP(L < \theta < U \mid \mv{y}) \geq 1-\alpha$.
+\begin{itemize}
+\item Often, $L$ and $U$ are chosen so that the tail probabilities outside the interval are both $=\alpha/2$.
+\item Another option is to choose the smallest set or interval with the required probability. This is achieved by finding a value $c$ such that the set $\text{CI}_\theta=\{\theta; p(\theta|\mv{y}) > c\}$ fulfils $\pP(\theta\in\text{CI}_\theta|\mv{y})\geq 1-\alpha$. The resulting $\text{CI}_\theta$ is called a \emph{highest posterior density} (HPD) region, and is well defined also for multi-dimensional parameter vectors.
+\item
+When $c$ is chosen as large as possible, the HPD is the smallest credible region possible for the given model parameterisation. However, due to how probability densities are changed under transformation of the random variable,
+HPD region constructions are not invariant under reparameterisation.
+\end{itemize}
+\end{frame}
+\begin{frame}
+  \frametitle{Credible region vs.\ Confidence region}\vspace*{-1.5mm}
+  \begin{block}{Posterior credible region (Bayesian concept)}
+    A \emph{level $1-\alpha$ posterior credible region} for $\theta$, $C_\theta(\mv{y})$, is a set (usually an interval) such that
+    \begin{align*}
+      \pP_{\theta\sim p(\theta|\mv{y})}\left(\theta\in C_\theta(\mv{y})\right) &\geq 1-\alpha
+    \end{align*}
+    for the fixed set of observations $\mv{y}$.  The probability is a
+    direct statement about our posterior beliefs about the random variable $\theta$.
+  \end{block}
+  \begin{block}{Confidence region (Frequentist concept)}
+    A \emph{level $1-\alpha$ confidence region} procedure for $\theta$,
+    $C_\theta(\mv{y})$, generates sets (usually intervals) in such a
+    way that
+    \begin{align*}
+      \pP_{\mv{y}\sim p(\mv{y};\theta)}\left(\theta\in C_\theta(\mv{y})\right) &\geq 1-\alpha
+    \end{align*}
+    for every possibe $\theta$ (or at least for the true value).  The
+    probability statement concerns the confidence region construction
+    \emph{procedure} under repeated experiments; the observations $\mv{y}$ are random.
+  \end{block}
+\end{frame}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\begin{frame}
+\frametitle{~~~}
+\end{frame}
+
+
+
+
+
+
+
+\begin{frame}
+\frametitle{Numerical integration}
+Non-statistical and statistical problems involving integrals:
+\begin{itemize}
+\item Integrate $f(\cdot)$ over some interval/set/domain $\Omega$:
+$$
+I=\int_\Omega f(\mv{x}) \md \mv{x}
+\vspace*{-2mm}
+$$
+\item Compute a \emph{marginal density} $p_Y(y)$ from a \emph{joint density}
+$p_{X,Y}(x,y)$, $x\in\Omega$:
+$$
+p_Y(y) = \int_\Omega p_{X,Y}(x,y) \md x
+\vspace*{-2mm}
+$$
+\item For some function $\phi(\mv{x})$ and density $p_X(\mv{x})$, $\mv{x}\in\Omega$, compute the
+expectation
+$$
+\pE_X[\phi(\mv{x})] = \int_\Omega \phi(\mv{x}) p_X(\mv{x}) \md \mv{x}
+\vspace*{-2mm}
+$$
+\item Challenges: High-dimensional $\Omega$ and computationally expensive integrands
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Deterministic integration methods}
+\begin{itemize}
+\item General idea: Find points and weights $(\mv{x}_k,w_k)$ such that
+\begin{align*}
+I=\int_\Omega f(\mv{x})\md \mv{x}\approx \sum_k f(\mv{x}_k) w_k = \wh{I}
+\vspace*{-4mm}
+\end{align*}
+\item Midpoint rule for $\Omega=(a,b)$: $x_k=a+(k-\frac{1}{2})\frac{b-a}{N}$,
+$w_k=\frac{b-a}{N}$, for $k=1,\dots,N$.
+\item Trapezoidal rule
+\item Simpson's rule
+\item Gaussian quadrature: For some special function $\psi(x)$, there is a specific set $\{(x_k,w_k)\}_N$ such that
+$\int g(x) \psi(x) \md x = \sum_{k=1}^N g(x_k) w_k$ for \emph{any polynomial} of degree $\leq 2N-1$. Use
+\begin{align*}
+\wh{I} &= \sum_{k=1}^N \frac{f(x_k)}{\psi(x_k)} w_k
+;\quad\text{\color{black} good approximation of $\color{otherblue}I$ if
+$\color{otherblue}f(x)/\psi(x)$ is close to a polynomial.}
+\vspace*{-4mm}
+\end{align*}
+\item Laplace approximation for $f(\mv{x})\geq 0$ on $\Omega=\R^d$:
+Scale a Gaussian density to match the amplitude and shape at the mode of the integrand:
+\begin{align*}
+\wh{\mv{x}} &= \argmax_{\mv{x}\in\Omega} f(\mv{x}), &
+\wh{\mv{H}} &= -\left.\nabla^2 \log f(\mv{x})\right|_{\mv{x}=\wh{\mv{x}}}, &
+\wh{w} &= \frac{(2\pi)^{d/2}}{(\det \wh{\mv{H}})^{1/2}}, &
+\wh{I} &= f(\wh{\mv{x}}) \wh{w}
+\end{align*}
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Monte Carlo integration}
+\begin{itemize}
+\item We know that if we have a sample $\mv{x}_1,\dots,\mv{x}_N$ from a
+distribution with density $p_X(\mv{x})$ we can estimate the expectation
+$\pE_{\mv{x}\sim p_X}[\phi(\mv{x})]=\int \phi(\mv{x})p_X(\mv{x})\md\mv{x}$
+with the average of $\phi(\mv{x}_k)$:\vspace*{-3mm}
+\begin{align*}
+\wh{\pE}_{\mv{x}\sim p_X}[\phi(\mv{x})] &=
+\frac{1}{N}\sum_{k=1}^N \phi(\mv{x}_k)
+\vspace*{-10mm}
+\end{align*}
+\item For bounded $\Omega$ we can write a Monte Carlo integration scheme for
+\begin{align*}
+I&=\int_\Omega f(\mv{x})\md\mv{x} =
+\int_\Omega |\Omega| f(\mv{x}) \frac{1}{|\Omega|}\md\mv{x}
+\approx
+\frac{|\Omega|}{N}\sum_{k=1}^N f(\mv{x}_k),
+\quad \mv{x}_1,\dots,\mv{x}_N\sim\pUnif(\Omega)
+\vspace*{-6mm}
+\end{align*}
+\item Plain MC estimates are unbiased, with variance
+\begin{align*}
+\pVar_{\{\mv{x}_k\sim\pUnif(\Omega)\}}\left[\frac{|\Omega|}{N}\sum_{k=1}^N f(\mv{x}_k)\right]
+&= \frac{|\Omega|^2}{N^2} N \, \pVar_{\mv{x}\sim\pUnif(\Omega)}\left[f(\mv{x})\right]
+\propto N^{-1}
+\end{align*}
+\end{itemize}
+\end{frame}
+
+
+
+
+<<echo=FALSE,warning=FALSE,cache=TRUE>>=
+integration <- function(fcn, Omega, N,
+                        method = c("Midpoint", "MC", "Importance"),
+                        seed = 12345L) {
+  method = match.arg(method)
+  set.seed(seed)
+  if (method == "Midpoint") {
+    result <- list(evaluations = tibble(x = ((seq_len(N) - 1 / 2) / N) * diff(Omega) + Omega[1],
+                                        f = fcn(x)))
+    N_plot <- max(1000, 10 * N)
+    result$plot <- tibble(x = ((seq_len(N_plot) - 1 / 2) / N_plot) * diff(Omega) + Omega[1],
+                          f = fcn(x),
+                          f_appr = 0,
+                          count = 0)
+    h <- 1e-6
+    for (x_eval in result$evaluations$x) {
+      ok <- abs(result$plot$x - x_eval) <= diff(Omega) / N / 2
+      result$plot <- result$plot %>%
+        mutate(f_appr = f_appr + ok * (fcn(x_eval) + (fcn(x_eval + h) - fcn(x_eval - h)) / 2 / h * (x - x_eval) * 0),
+               count = count + ok)
+    }
+    result$plot <- result$plot %>%
+      mutate(f_appr = f_appr / (count + (count == 0))) %>%
+      select(-count)
+    result$integral <- tibble(true = sum(result$plot$f) * diff(Omega) / N_plot,
+                              appr = sum(result$evaluations$f) * diff(Omega) / N)
+  } else if (method == "MC") {
+    result <- list(evaluations = tibble(x = sort(runif(N)) * diff(Omega) + Omega[1],
+                                        f = fcn(x)))
+    N_plot <- max(1000, 10 * N)
+    result$plot <- tibble(x = ((seq_len(N_plot) - 1 / 2) / N_plot) * diff(Omega) + Omega[1],
+                          f = fcn(x),
+                          f_appr = 0)
+    result$integral <- tibble(true = sum(result$plot$f) * diff(Omega) / N_plot,
+                              appr = sum(result$evaluations$f) * diff(Omega) / N)
+  } else if (method == "Importance") {
+    # density = duser(x) / diff(puser(Omega))
+    # cdf = (puser(x) - puser(Omega[1])) / diff(puser(Omega))
+    # quantile = quser(puser(Omega[1]) + cdf * diff(puser(Omega)))
+    duser <- dexp
+    puser <- pexp
+    quser <- qexp
+    d_imp <- function(x) duser(x) / diff(puser(Omega))
+    p_imp <- function(x) (puser(x) - puser(Omega[1])) / diff(puser(Omega))
+    q_imp <- function(x) quser(puser(Omega[1]) + x * diff(puser(Omega)))
+    result <- list(evaluations = tibble(x = sort(q_imp(runif(N))),
+                                        f = fcn(x),
+                                        weight = (1 / diff(Omega)) / d_imp(x)))
+
+    N_plot <- max(1000, 10 * N)
+    result$plot <- tibble(x = ((seq_len(N_plot) - 1 / 2) / N_plot) * diff(Omega) + Omega[1],
+                          f = fcn(x),
+                          weight = (1 / diff(Omega)) / d_imp(x))
+    result$integral <- tibble(true = sum(result$plot$f) * diff(Omega) / N_plot,
+                              appr = sum(result$evaluations$f * result$evaluations$weight) * diff(Omega) / N)
+  } else {
+    stop(paste0("Unknown method '", method, "'."))
+  }
+  result
+}
+
+do_compute <- function(fcn, Omega, N) {
+  point_size <- 5 / N^0.333
+
+  result <- list()
+  result$Midpoint <- integration(fcn, Omega = Omega, N = N, method = "Midpoint")
+  result$MC <- integration(fcn, Omega = Omega, N = N, method = "MC")
+  result$Importance <- integration(fcn, Omega = Omega, N = N, method = "Importance")
+  result
+}
+do_plot <- function(fcn, Omega, N, results) {
+  point_size <- 5 / N^0.333
+
+  result <- results$Midpoint
+  pl_Midpoint <-
+    ggplot(result$plot) +
+    geom_line(aes(x, f)) +
+    geom_line(aes(x, f_appr), col = "red") +
+    geom_point(data = result$evaluations, aes(x, f), size = point_size) +
+    geom_hline(yintercept = result$integral$true / diff(Omega)) +
+    geom_hline(yintercept = result$integral$appr / diff(Omega), col = "red") +
+    ggtitle(paste0("Midpoint, N = ", N))
+
+  result <- results$MC
+  pl_MC_vertical <-
+    ggplot(result$evaluations) +
+    geom_density(data = result$plot,
+                 aes(f),
+                 kernel = "epanechnikov", adjust = 0.1) +
+    geom_density(aes(f),
+                 kernel = "epanechnikov", adjust = 0.1,
+                 col ="red") +
+    geom_jitter(aes(f, 0), width = 0, height = 0.0, size = point_size) +
+    coord_flip() +
+    xlim(range(result$plot$f)) +
+    ggtitle(paste0("Monte Carlo"))
+  pl_MC_main <-
+    ggplot(result$plot) +
+    geom_line(aes(x, f)) +
+    geom_point(data = result$evaluations, aes(x, f), size = point_size) +
+    ylim(range(result$plot$f)) +
+    geom_hline(yintercept = result$integral$true / diff(Omega)) +
+    geom_hline(yintercept = result$integral$appr / diff(Omega), col = "red") +
+    ggtitle(paste0("Monte Carlo, N = ", N))
+
+  result <- results$Importance
+  pl_Imp_vertical <-
+    ggplot(result$evaluations) +
+    geom_density(data = result$plot,
+                 aes(f * weight),
+                 kernel = "epanechnikov", adjust = 0.1) +
+    geom_density(aes(f * weight),
+                 kernel = "epanechnikov", adjust = 0.1,
+                 col ="red") +
+    geom_jitter(aes(f * weight, 0), width = 0, height = 0.0, size = point_size) +
+    coord_flip() +
+    xlim(range(result$plot$f, result$plot$f * result$plot$weight)) +
+    ggtitle(paste0("MC Importance"))
+  pl_Imp_main <-
+    ggplot(result$plot) +
+    geom_line(aes(x, f)) +
+    geom_line(aes(x, f * weight), col ="red") +
+    geom_line(aes(x, result$integral$true / diff(Omega) / weight), col ="red", lty = 2) +
+    geom_point(data = result$evaluations, aes(x, f), size = point_size) +
+    geom_point(data = result$evaluations, aes(x, f * weight), col = "red", size = point_size) +
+    ylim(range(result$plot$f, result$plot$f * result$plot$weight)) +
+    geom_hline(yintercept = result$integral$true / diff(Omega)) +
+    geom_hline(yintercept = result$integral$appr / diff(Omega), col = "red") +
+    ggtitle(paste0("Monte Carlo Importance, N = ", N))
+
+  list(Midpoint = pl_Midpoint,
+       MC_vertical = pl_MC_vertical,
+       MC = pl_MC_main,
+       Importance_vertical = pl_Imp_vertical,
+       Importance = pl_Imp_main)
+}
+@
+
+
+<<int-fun1, echo=FALSE,warning=FALSE,results="hide",cache=TRUE>>=
+fcn <- function(x) {
+  cos(x) + x / 6
+}
+Omega <- c(0, 10)
+NN <- c(1, 10, 100, 1000, 10000)
+result <- list()
+for (N_idx in seq_along(NN)) {
+  result[[N_idx]] <- do_compute(fcn, Omega, NN[N_idx])
+}
+@
+\begin{frame}
+<<echo=FALSE,warning=FALSE,results="asis",fig.show="asis">>=
+for (N_idx in seq_along(NN)) {
+  if (N_idx > 1) {
+    cat("\\end{frame}\n")
+    cat("\\begin{frame}\n")
+  }
+  plots <- do_plot(fcn, Omega, NN[N_idx], result[[N_idx]])
+  grid.arrange(plots$Midpoint,
+               plots$MC_vertical, plots$MC,
+               ncol = 3, nrow = 2,
+               layout_matrix = rbind(c(NA,1,1), c(2,3,3)))
+}
+@
+\end{frame}
+
+
+
+
+\begin{frame}
+\frametitle{Importance sampling}
+\begin{itemize}
+\item We can often reduce the MC variance by sampling with a density $p_Z(\cdot)$ that is similar to $\phi(\mv{x})p_X(\mv{x})$ or $f(\mv{x})$, a technique called \emph{Importance sampling}:
+\begin{align*}
+I &= \int f(\mv{x}) \md\mv{x}
+= \int \frac{f(\mv{x})}{p_Z(\mv{x})} p_Z(\mv{x}) \md\mv{x}
+=
+\pE_{\mv{x}\sim p_Z}\left[\frac{f(\mv{x})}{p_Z(\mv{x})}\right]
+\approx
+\frac{1}{N}\sum_{k=1}^N \frac{f(\mv{x}_k)}{p_Z(\mv{x}_k)}
+=\wh{I}
+\vspace*{-6mm}
+\end{align*}
+where $\mv{x}_k$, $k=1,\dots,N$ are sampled from the $p_Z(\cdot)$ density.
+\item
+The variance is still $\propto N^{-1}$, but with a potentially much smaller constant:
+\begin{align*}
+\pVar_{\{\mv{x}_k\sim p_Z\}}\left[\wh{I}\right] =
+\pVar_{\{\mv{x}_k\sim p_Z\}}\left[\frac{1}{N}\sum_{k=1}^N \frac{f(\mv{x}_k)}{p_Z(\mv{x}_k)}\right]
+&= \frac{1}{N} \pVar_{\mv{x}\sim p_Z}\left[\frac{f(\mv{x})}{p_Z(\mv{x})}\right]
+\vspace*{-6mm}
+\end{align*}
+\item
+Note: If we were able to choose $p_Z(\mv{x})\propto f(\mv{x})$, the variance would be zero!
+\end{itemize}
+\end{frame}
+
+
+<<int-fun2, echo=FALSE,warning=FALSE,results="asis",fig.show="asis",cache=TRUE>>=
+fcn <- function(x) {
+  exp(-x) * (1 + sin(2 * pi * x)^2 * (1 + x / 16)) / 2
+}
+Omega <- c(0, 2)
+for (N_idx in seq_along(NN)) {
+  result[[N_idx]] <- do_compute(fcn, Omega, NN[N_idx])
+}
+@
+\begin{frame}
+<<echo=FALSE,warning=FALSE,results="asis",fig.show="asis">>=
+fcn <- function(x) {
+  exp(-x) * (1 + sin(2 * pi * x)^2 * (1 + x / 16)) / 2
+}
+Omega <- c(0, 2)
+for (N_idx in seq_along(NN)) {
+  if (N_idx > 1) {
+    cat("\\end{frame}\n")
+    cat("\\begin{frame}\n")
+  }
+  plots <- do_plot(fcn, Omega, NN[N_idx], result[[N_idx]])
+  grid.arrange(plots$MC_vertical, plots$MC,
+               plots$Importance_vertical, plots$Importance,
+               ncol = 3, nrow = 2,
+               layout_matrix = rbind(c(1,2,2), c(3,4,4)))
+}
+@
+\end{frame}
+
+<<int-fun3, echo=FALSE,warning=FALSE,results="asis",fig.show="asis",cache=TRUE>>=
+fcn <- function(x) {
+  exp(x - 2) * (1 + sin(2 * pi * x)^2 * (1 + x / 16)) / 2
+}
+Omega <- c(0, 2)
+for (N_idx in seq_along(NN)) {
+  result[[N_idx]] <- do_compute(fcn, Omega, NN[N_idx])
+}
+@
+\begin{frame}
+<<echo=FALSE,warning=FALSE,results="asis",fig.show="asis">>=
+fcn <- function(x) {
+  exp(x - 2) * (1 + sin(2 * pi * x)^2 * (1 + x / 16)) / 2
+}
+Omega <- c(0, 2)
+for (N_idx in seq_along(NN)) {
+  if (N_idx > 1) {
+    cat("\\end{frame}\n")
+    cat("\\begin{frame}\n")
+  }
+  plots <- do_plot(fcn, Omega, NN[N_idx], result[[N_idx]])
+  grid.arrange(plots$MC_vertical, plots$MC,
+               plots$Importance_vertical, plots$Importance,
+               ncol = 3, nrow = 2,
+               layout_matrix = rbind(c(1,2,2), c(3,4,4)))
+}
+@
+\end{frame}
+
+
+
+
+\begin{frame}
+\frametitle{Bias/Variance tradeoff}
+\begin{itemize}
+\item The bias for the deterministic Midpoint rule is $\Ordo(h^2)$,
+where $h$ is the distance between each integration point.
+\item In $d$ dimensions, the spacing in regular lattice for a cube $[0,1]^d$ is $h = N^{-1/d}$, which means that the bias is $\Ordo(N^{-2/d})$.
+\item The standard deviation for plain Monte Carlo integration is $\Ordo(N^{-1/2})$.
+\item For $1 \leq d < 4$, the bias for the Midpoint rule decreases faster in $N$ than the MC std.dev.
+\item For $d > 4$, the MC std.dev.\ decreases faster.
+\item Conclusion: \emph{Monte Carlo integration is relatively efficient for high dimensional integrals.}
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Bias/Variance tradeoff}
+Can we get the best of both worlds? Partly, via \emph{stratified} Monte Carlo:
+\begin{itemize}
+\item Split the integration domain into $N$ disjoint subdomains: $\Omega=\cup_{k=1}^N \Omega_k$
+\item Sample each $\mv{x}_k\sim\pUnif(\Omega_k)$ and let $\wh{I}=\sum_{k=1}^N |\Omega_k| f(\mv{x}_k)$, which is unbiased
+\item Take a regular lattice with $|\Omega_k|=|\Omega|/N$, $h=\Ordo(N^{-1/d})$. If $f$ has bounded gradients, then $\pVar_{\mv{x}\sim\pUnif(\Omega_k)}\left[f(\mv{x})\right]=\Ordo(h^2)$, and
+\begin{align*}
+\pVar_{\{\mv{x}_k\sim\pUnif(\Omega_k)\}}\left[\sum_{k=1}^N |\Omega_k|f(\mv{x}_k)\right]
+&= \dots = \frac{|\Omega|^2}{N^2} N \Ordo(h^2) =
+\Ordo(N^{-2/d-1})
+\end{align*}
+so the std.dev.\ $\Ordo(N^{-1/d-1/2})$ decays faster in $N$ than for plain MC, and also faster than plain Midpoint integration for $d>2$. The gain over plain MC diminishes with increasing $d$.
+\item \emph{Quasi Monte Carlo} integration uses a deterministic space filling sequence, converting variance to bias.
+\end{itemize}
+\end{frame}
+
+
+
+
+
+
+
+
+%\begin{frame}
+%Bayes basics
+%
+%Binomial\&Beta example
+%
+%Integration/Marginalisation
+%
+%Credible intervals
+%\end{frame}
+
+\end{document}

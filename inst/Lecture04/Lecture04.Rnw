@@ -1,0 +1,142 @@
+\documentclass[compress,handout,t,10pt,fleqn,aspectratio=169]{beamer}
+
+\input{common.tex}
+\input{commonbeamer.tex}
+\DeclareMathOperator*{\argmin}{argmin}
+\renewcommand{\bm}[1]{\boldsymbol{#1}}
+\togglefalse{byhand}
+%\toggletrue{byhand}
+<<echo=FALSE>>=
+solutions <- TRUE
+knitr::opts_chunk$set(
+  fig.path = "figure/L04-",
+  fig.align = "center",
+  fig.show = "hold",
+  size = "footnotesize",
+  fig.width = 8,
+  fig.height = 8 * 0.6,
+  out.width = "\\linewidth",
+  out.height = "0.6\\linewidth"
+)
+knitr::knit_hooks$set(inline = function(x) {
+  if (is.numeric(x)) {
+    return(knitr:::format_sci(x, "latex"))
+  }
+  highr::hi_latex(x)
+})
+set.seed(12345L)
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(gridExtra))
+theme_set(theme_minimal())
+@
+% Handle solutions inclusion toggle.
+\togglefalse{solutions}
+<<echo=FALSE, results="asis">>=
+if (solutions) {
+  cat("\\toggletrue{solutions}")
+}
+@
+
+\begin{document}
+
+
+\begin{frame}
+  \frametitle{\LaTeX maths typesetting \hfill\small(MATH10093)}
+~
+  \vfill
+  ~
+  \begin{itemize}
+  \item Some \LaTeX\ tips
+  \end{itemize}
+  ~
+  \vfill
+  ~
+\end{frame}
+
+
+
+
+\begin{frame}[fragile]
+\frametitle{\LaTeX\ maths example}
+Functions and Greek letters: \verb!\exp!, \verb!\sigma!; $\exp$, $\sigma$\\
+Concepts/terms: \verb!\mathsf{P}!, \verb!\mathsf{E}!, \verb!\mathsf{Var}!; $\mathsf{P}$, $\mathsf{E}$, $\mathsf{Var}$\\
+Adaptive brackets: \verb!\left( \dots \right)!, for \verb!()!, \verb![]!, \verb!\{\}!;
+$\left(\dots\right)$,
+$\left[\dots\right]$,
+$\left\{\dots\right\}$
+$$
+\begin{aligned}
+\mathsf{Var}(Y) &=
+  \mathsf{E}[ \mathsf{Var}(Y | X) ] +
+  \mathsf{Var}[ \mathsf{E}(Y | X) ]
+= \mathsf{E}\left[ \exp(\mu + X) \right] +
+   \mathsf{Var}\left[ \mathrm{e}^{\mu + X} \right] \\
+f(x) &\approx f(x_0) + (x-x_0)^\top \nabla f(x)
+  + \frac{1}{2} (x-x_0)^\top \left[ \nabla^2 f(x) \right] (x-x_0)
+\end{aligned}
+$$\vspace*{-7mm}
+\small
+\begin{verbatim}
+$$
+\begin{aligned}
+\mathsf{Var}(Y) &= \mathsf{E}[ \mathsf{Var}(Y | X) ] +
+                 \mathsf{Var}[ \mathsf{E}(Y | X) ]
+= \mathsf{exp}\left[ \exp(\mu + X) \right] +
+   \mathsf{Var}\left[ \mathrm{e}^{\mu + X} \right] \\
+f(x) &\approx f(x_0)
+  + (x-x_0)^\top \nabla f(x)
+  + \frac{1}{2} (x-x_0)^\top \left[ \nabla^2 f(x) \right]
+    (x-x_0)
+\end{aligned}
+$$
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+For bold letters in mathematical expressions (often used for vectors and matrices),
+there are several options, but only a few that work with both html and \LaTeX\/ output
+from RMarkdown. The apparently most consistent option is \verb!\boldsymbol!:
+\begin{itemize}
+\item
+\verb!$\boldsymbol{x}$! gives $\boldsymbol{x}$, \verb!$\boldsymbol{\mu}$! gives $\boldsymbol{\mu}$
+\item Macro definition to avoid lots of typing:\\
+\verb!\newcommand{\bm}[1]{\boldsymbol{#1}}!\\
+\item Macro definition in RMarkdown header:
+\begin{verbatim}
+---
+...
+header-includes:
+  - \newcommand{\bm}[1]{\boldsymbol{#1}}
+---
+\end{verbatim}
+Note: There is also a \verb!bm! \LaTeX package that defines a \verb!\bm! macro,
+that works well for pdf output but not for html output.\\
+\verb!$\bm{x}$! gives $\bm{x}$, \verb!$\bm{\mu}$! gives $\bm{\mu}$
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Suggested macros}
+To be able to adapt the appearance of notation throughout a document, and save some typing,
+it is often useful to define a few commonly used macros:
+\begin{itemize}
+\item Expectation: \verb!\newcommand{\pE}{\mathsf{E}}!
+\item Variance: \verb!\newcommand{\pVar}{\mathsf{Var}}!
+\item Probability: \verb!\newcommand{\pP}{\mathsf{P}}!
+\item Matrices: \verb!\newcommand{\mat}[1]{\begin{bmatrix}#1\end{bmatrix}}!
+\item Extra operator example: \verb!\DeclareMathOperator*{\argmin}{argmin}!
+\end{itemize}
+Examples:
+\begin{itemize}
+\item \verb!$Var(X)$! vs \verb!$\pVar(X)$!: $Var(X)$ (product of $V$, $a$, $r$, and $X$) vs $\pVar(X)$
+\item Matrix: \verb!\mat{5 & 2 \\ 2 & 1}! becomes $\mat{5 & 2 \\ 2 & 1}$
+\item \verb!\widehat{\theta}_\text{ML} = \argmin_\theta \{-\log[p(y|\theta)]\}!:
+$$\widehat{\theta}_\text{ML} = \argmin_\theta \{-\log[p(y|\theta)]\}$$
+\end{itemize}
+\end{frame}
+
+
+
+
+
+\end{document}

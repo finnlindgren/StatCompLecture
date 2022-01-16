@@ -1,0 +1,256 @@
+\documentclass[compress,handout,t,10pt,fleqn,aspectratio=169]{beamer}
+
+\input{common.tex}
+\input{commonbeamer.tex}
+\togglefalse{byhand}
+%\toggletrue{byhand}
+<<echo=FALSE>>=
+solutions <- TRUE
+knitr::opts_chunk$set(
+  fig.path = "figure/L08-",
+  fig.align = "center",
+  fig.show = "hold",
+  size = "footnotesize",
+  fig.width = 8,
+  fig.height = 8 * 0.6,
+  out.width = "\\linewidth",
+  out.height = "0.6\\linewidth"
+)
+knitr::knit_hooks$set(inline = function(x) {
+  if (is.numeric(x)) {
+    return(knitr:::format_sci(x, "latex"))
+  }
+  highr::hi_latex(x)
+})
+set.seed(12345L)
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(gridExtra))
+theme_set(theme_minimal())
+@
+% Handle solutions inclusion toggle.
+\togglefalse{solutions}
+<<echo=FALSE, results="asis">>=
+if (solutions) {
+  cat("\\toggletrue{solutions}")
+}
+@
+
+\begin{document}
+
+
+\begin{frame}
+  \frametitle{\LaTeX maths typesetting, and Bayesian statistics \hfill\small(MATH10093: L08)}
+~
+  \vfill
+  ~
+  \begin{itemize}
+  \item Some \LaTeX\ tips
+  \item Basic Bayesian statistics
+  \begin{itemize}
+  \item Prior, Observations, Posterior, and Bayes' formula
+  \item Computational approaches
+  \item Priors
+  \item Example: Beta\&Binomial
+  \end{itemize}
+  \end{itemize}
+  ~
+  \vfill
+  ~
+\end{frame}
+
+
+
+
+\begin{frame}[fragile]
+\frametitle{\LaTeX\ maths example}
+Functions and Greek letters: \verb!\exp!, \verb!\sigma!; $\exp$, $\sigma$\\
+Concepts/terms: \verb!\text{P}!, \verb!\text{E}!, \verb!\text{Var}!; $\text{P}$, $\text{E}$, $\text{Var}$\\
+Adaptive brackets: \verb!\left( \dots \right)!, for \verb!()!, \verb![]!, \verb!\{\}!;
+$\left(\dots\right)$,
+$\left[\dots\right]$,
+$\left\{\dots\right\}$
+$$
+\begin{aligned}
+\text{Var}(Y) &=
+  \text{E}[ \text{Var}(Y | X) ] +
+  \text{Var}[ \text{E}(Y | X) ]
+= \text{E}\left[ \exp(\mu + X) \right] +
+   \text{Var}\left[ \mathrm{e}^{\mu + X} \right] \\
+f(x) &\approx f(x_0) + (x-x_0)^\top \nabla f(x)
+  + \frac{1}{2} (x-x_0)^\top \left[ \nabla^2 f(x) \right] (x-x_0)
+\end{aligned}
+$$\vspace*{-7mm}
+\small
+\begin{verbatim}
+$$
+\begin{aligned}
+\text{Var}(Y) &= \text{E}[ \text{Var}(Y | X) ] +
+                 \text{Var}[ \text{E}(Y | X) ]
+= \text{exp}\left[ \exp(\mu + X) \right] +
+   \text{Var}\left[ \mathrm{e}^{\mu + X} \right] \\
+f(x) &\approx f(x_0)
+  + (x-x_0)^\top \nabla f(x)
+  + \frac{1}{2} (x-x_0)^\top \left[ \nabla^2 f(x) \right]
+    (x-x_0)
+\end{aligned}
+$$
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+For bold letters in mathematical expressions (often used for vectors and matrices):
+\begin{itemize}
+\item Normal symbols:\\
+\verb!$x$! gives $x$, \verb!$\mu$! gives $\mu$
+\item Bold Latin letters in different font, but no effect on Greek letters:\\
+\verb!$\mathbf{x}$! gives $\mathbf{x}$, \verb!$\mathbf{\mu}$! gives $\mathbf{\mu}$
+\item Longer macro name but works:\\
+\verb!$\boldsymbol{x}$! gives $\boldsymbol{x}$, \verb!$\boldsymbol{\mu}$! gives $\boldsymbol{\mu}$
+\item Shorter alternative, also with consistent results:\\
+\verb!$\bm{x}$! gives $\bm{x}$, \verb!$\bm{\mu}$! gives $\bm{\mu}$\\
+Drawbacks:\\
+1. Requires some RMarkdown setup:
+\begin{verbatim}
+---
+output:
+  pdf_document: default
+header-includes:
+  - \usepackage{bm}
+---
+\end{verbatim}
+2. Does not work for HTML output (knitr will run but the
+expressions will not look right)
+\end{itemize}
+\end{frame}
+
+
+
+
+
+\begin{frame}
+\frametitle{Prior, Observations, Posterior; concepts}
+In a basic Bayesian model, the main difference to frequentistic modelling is that
+the unknown parameters are now treated as \emph{unobserved random variables}
+instead of unknown constants.
+\begin{itemize}
+\item The distribution for the parameters is called the
+\emph{prior distribution}.
+\item The observation distribution conditionally on the
+parameters is often referred to as the observation \emph{likelihood}, although
+this terminology is not universally accepted as proper.
+\item The \emph{conditional distribution} for the parameters, given  the observations,
+is called the \emph{posterior distribution}
+\end{itemize}
+\end{frame}
+\begin{frame}
+\frametitle{Prior, Observations, Posterior; mathematical probability theory}
+In mathematical terms, with parameters $\mv{\theta}=(\theta_1,\dots,\theta_m)$
+and observations $\mv{y}=(y_1,\dots,y_n)$:
+\begin{itemize}
+\item Prior density: $\mv{\theta}\sim p_{\mv{\theta}}(\mv{\theta})$, often abbreviated to just $p(\mv{\theta})$.
+If the prior distributions has any (fixed and known) parameters, they are referred to as \emph{hyper}-parameters.
+\item Conditional observation likelihood/density/probability function:
+$(\mv{y}|\mv{\theta})\sim p_{\mv{y}|\mv{\theta}}(\mv{y})$, usually written $p(\mv{y}|\mv{\theta})$.
+\item Posterior density:
+$(\mv{\theta}|\mv{y}) \sim p(\mv{\theta}|\mv{y}) = \frac{p(\mv{\theta},\mv{y})}{p(\mv{y})} =
+\frac{p(\mv{\theta})p(\mv{y}|\mv{\theta})}{p(\mv{y})}
+\quad\text{Bayes' formula}
+$
+\item \emph{Marginal} observation denstity/probability function:
+$p(\mv{y}) = \int p(\mv{\theta}, \mv{y}) \md\mv{\theta} = \int p(\mv{\theta})p(\mv{y}|\mv{\theta}) \md\mv{\theta}$
+\end{itemize}
+For discrete variables or parameters, the integrals are replaced by sums.
+\end{frame}
+
+
+
+\begin{frame}
+\frametitle{Computational approaches}
+The Bayesian statistics framework is appealing in that (almost) everything flows
+from general probability theory, once a probabilistic model has been formulated.
+The difficuly lies in how to actually calculate
+the involved densities, expectations, variances, and probabilities.
+
+\begin{itemize}
+\item Analytical derivation; some results are easy to derive by hand (see example on later slide)
+\item Approximate deterministic numerical integration; deterministic integration schemes, Laplace approximation (lecture 7)
+\item Basic simulation and integration; Monte Carlo integration, importance sampling (lecture 7)
+\item Advanced simulation and integration; Markov chain Monte Carlo (MCMC) simulation (beyond the scope of this course)
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Priors}
+One of the challenges in Bayesian modelling is how to specify realistic priors.
+\begin{itemize}
+\item One approach is to elicit information from application area experts and encode their \emph{subjective} information as probability distributions.
+\item Another is to construct \emph{objective} priors, or \emph{vague} priors (often, and incorrectly, called ``uninformative'' priors) with the aim of regularising otherwise unstable results but without otherwise imposing too strict limitations.
+\item Before the proliferation of computational techniques in the 1990's, and indeed still today, most priors were chosen to be \emph{conjugate}  with respect to the observation distribution (the prior and posterior belong to the same distribution family), to allow analytical solutions. Modern computational methods has removed much of the motivation for such priors; they can simplify calculations, but need not be used if more realistic priors are available.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Example: Binomial observations with Beta prior}
+Consider the following Bayesian model
+(version with a single observation seen in Statistical Methodology lectures)
+for Binomial observations $\mv{y}=(y_1,\dots,y_K)$ with common probability
+parameter $\phi$:
+\begin{itemize}
+\item Parameter prior distribution: $\phi\sim\pBeta(a,b)$ for some \emph{hyper}-parameters $a,b>0$.
+\item Observations: $(y_k|\phi) \sim \pBin(N_k, \phi)$, independent over $k=1,\dots,K$, known $N_k$.
+\item Posterior distribution for $\phi$: $\pBeta\left[a+\sum_{k=1}^K y_k, b+\sum_{k=1}^K (N_k-y_k)\right]$
+\end{itemize}
+Proof: Moving all factors that do not depend on $\phi$ into a normalisation constant, we get
+\begin{align*}
+p(\phi|\mv{y}) &= \frac{p(\phi) p(\mv{y}|\phi)}{p(\mv{y})}
+\propto
+p(\phi) \prod_{k=1}^K p(y_k|\phi)
+=
+\frac{\phi^{a-1}(1-\phi)^{b-1}}{B(a,b)} \prod_{k=1}^K {N_k \choose y_k} \phi^{y_k}(1-\phi)^{N_k-y_k}
+\\&\propto
+\phi^{a-1+\sum_k y_k}(1-\phi)^{b-1+\sum_k (N_k-y_k)} .
+\end{align*}
+This takes the same form as a Beta distribution density (this shows that Beta is
+a conjugate prior for the probability parameter in a Binomial distribution), so the result
+follows by identifying the parameters.
+\end{frame}
+
+
+
+\begin{frame}
+\frametitle{Bayesian credible intervals}
+A Bayesian \emph{$(1-\alpha)\cdot 100$ percent credible interval} $\text{CI}_\theta=(a,b)$ for a parameter $\theta$ is an interval computed from the posterior distribution, such that $\pP(a < \theta < b \mid \mv{y}) \geq 1-\alpha$.
+\begin{itemize}
+\item Often, $a$ and $b$ are chosen so that the tail probabilities outside the interval are both $=\alpha/2$.
+\item Another option is to choose the smallest set or interval with the required probaiblity. This is achieved by finding a value $c$ such that the set $\text{CI}_\theta=\{\theta; p(\theta|\mv{y}) > c\}$ fulfils $\pP(\theta\in\text{CI}_\theta|\mv{y})\geq 1-\alpha$. The resulting $\text{CI}_\theta$ is called a \emph{highest posterior density} (HPD) region, and is well defined also for multi-dimensional parameter vectors.
+\item
+When $c$ is chosen as large as possible, the HPD is the smallest credible region possible for the given model parameterisation. However, due to how probability densities are changed under transformation of the random variable,
+HPD region constructions are not invariant under reparameterisation.
+\end{itemize}
+\end{frame}
+\begin{frame}
+  \frametitle{Credible region vs.\ Confidence region}\vspace*{-1.5mm}
+  \begin{block}{Posterior credible region (Bayesian concept)}
+    A \emph{level $1-\alpha$ posterior credible region} for $\theta$, $C_\theta(\mv{y})$, is a set (usually an interval) such that
+    \begin{align*}
+      \pP_{\theta\sim p(\theta|\mv{y})}\left(\theta\in C_\theta(\mv{y})\right) &\geq 1-\alpha
+    \end{align*}
+    for the fixed set of observations $\mv{y}$.  The probability is a
+    direct statement about our posterior beliefs about the random variable $\theta$.
+  \end{block}
+  \begin{block}{Confidence region (Frequentist concept)}
+    A \emph{level $1-\alpha$ confidence region} procedure for $\theta$,
+    $C_\theta(\mv{y})$, generates sets (usually intervals) in such a
+    way that
+    \begin{align*}
+      \pP_{\mv{y}\sim p(\mv{y};\theta)}\left(\theta\in C_\theta(\mv{y})\right) &\geq 1-\alpha
+    \end{align*}
+    for every possibe $\theta$ (or at least for the true value).  The
+    probability statement concerns the confidence region construction
+    \emph{procedure} under repeated experiments; the observations $\mv{y}$ are random.
+  \end{block}
+\end{frame}
+
+
+\end{document}

@@ -1,0 +1,664 @@
+\documentclass[compress,handout,t,10pt,fleqn,aspectratio=169]{beamer}
+
+\input{common.tex}
+\input{commonbeamer.tex}
+\togglefalse{byhand}
+\toggletrue{byhand}
+<<echo=FALSE>>=
+solutions <- TRUE
+opts_chunk$set(fig.path = 'figure/L08-',
+               fig.align = 'center',
+               fig.show = 'hold',
+               size = 'footnotesize',
+               fig.width = 8,
+               fig.height = 0.65*8,
+               out.width = "\\linewidth",
+               out.height = "0.65\\linewidth")
+knit_hooks$set(inline = function(x) {
+  if (is.numeric(x)) return(knitr:::format_sci(x, 'latex'))
+  highr::hi_latex(x)
+})
+@
+% Handle solutions inclusion toggle.
+\togglefalse{solutions}
+<<echo=FALSE, results="asis">>=
+if (solutions) {
+  cat("\\toggletrue{solutions}")
+}
+@
+
+\begin{document}
+
+
+
+\begin{frame}
+  \frametitle{Statistical Computing: Numerical computations\hfill\small(MATH10093)}\vspace*{-2mm}
+
+  \begin{itemize}
+  \item
+  Numbers on the real line $\R$ cannot all be represented exactly in a computer.
+  \item Usually, we use \emph{floating point storage}, which uses a fixed finite amount of bit ($0$/$1$) storage to represent a subset of the real numbers.
+  \end{itemize}
+  \begin{block}{Double precision floating point numbers (Standard: IEEE 754)}
+  \emph{Double precision} means that we have 64 bits (0/1) at our disposal, split into\\[2mm]
+  \begin{tabular}{cc}
+  Bits & Interpretation \\\hline
+  1 & $\sign(x)\in\{-1,+1\}$\\
+  11 & $\textrm{exponent}(x)\in[-1022,+1023]$ \\
+  52 & $\textrm{fraction}(x)\in[0,1)$
+  \end{tabular}
+  \\[2mm]
+  These components combine to define the \emph{computed} version of a number $x$ as
+  \begin{align*}
+  \comp(x) = \sign \cdot (1 + \textrm{fraction}) \cdot 2^{\textrm{exponent}},
+  \end{align*}
+and   $|x|< 2^{-1022}$ is treated specially.
+  \end{block}
+  \end{frame}
+
+  \begin{frame}
+  \frametitle{Relative storage error}
+  The closest floating point number $\comp(x)$ to a real value $x\not\approx 0$ has bounded \emph{relative error}\/:
+  \begin{align*}
+  \frac{|\comp(x) - x|}{|x|} &\lesssim \epsilon_0,
+  \end{align*}
+  where $\epsilon_0$ is called the \emph{machine precision}.
+
+\begin{block}{Machine precision}
+  The machine precision is the smallest number such that $\comp(1+\epsilon_0) > 1$.
+  \\
+  In R the value can be accessed as \code{.Machine\$double.eps}, and is $\epsilon_0\approx 2.220446\cdot 10^{-16}$.
+  \end{block}
+
+This allows a simple model for handling numerical approximation errors:
+  \begin{align*}
+  \comp(x) &= (1+\epsilon)x,
+  \end{align*}
+  for some $\epsilon$ such that $|\epsilon|\lesssim\epsilon_0$.
+  \vfill
+  For simple storage of numbers, the error is quite small, but we need\\
+  to beware of amplifying the error when we perform computations!
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Example: Non-exact number representation}
+\begin{itemize}
+\item
+The special constant $\pi$ is irrational, so definitely does not have an exact floating point number representation.
+\item
+Using the approximation error model $|\comp(\pi)-\pi| \lesssim \epsilon_0 \pi$, we can
+find an approximate bound for the error in calculating $\sin(k\pi)$, as a function of $k=1,2,3,4,\dots$.
+\item
+Under the assumption that $\sin(\cdot)$ can be calculated to machine precision accuracy for any given input value, we get $|\sin(k\comp(\pi))-\sin(k\pi)| = |\sin(k(1+\epsilon)\pi)| = |\sin(k\epsilon\pi)| = k|\epsilon|\pi + \Ordo(|\epsilon|^3)$, from the Taylor series of $\sin(\cdot)$ around zero. An approximate bound is then $\lesssim k\epsilon_0\pi$.
+\item
+We can plot $|\sin(k\comp(\pi))-\sin(k\pi)|$ and the bound $k\epsilon_0\pi$ for $k=1,2,3,\dots,1000$:
+\end{itemize}
+<<echo=FALSE,fig.height=0.3*8,out.height="0.3\\linewidth">>=
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(patchwork))
+pl <- ggplot(data.frame(k = seq_len(1000)) %>%
+         mutate(fun = sin(k*pi),
+                comp_fun = sin(k*pi*.Machine$double.eps))) +
+  geom_point(aes(k, abs(fun))) +
+  geom_line(aes(k, comp_fun)) +
+  ylab("Error and bound")
+(pl | pl + scale_x_log10() + scale_y_log10())
+@
+\end{frame}
+
+
+
+
+
+
+\begin{frame}[fragile]
+\frametitle{Numerics for Least Squares estimation of linear models}
+\begin{itemize}
+\item
+In matrix/vector form, we write linear models for
+\begin{itemize}
+\item observations $\mv{y}=\mat{y_1, \dots, y_n}^\top:n\times 1$,
+\item explanatory/predictor covariates $\mv{X}=\mat{\mv{x}_1,\dots,\mv{x}_p}:n\times p$, $n>p$,
+\item parameters $\mv{\beta}=\mat{\beta_1, \dots, \beta_p}^\top:p\times 1$, and
+\item observation noise $\mv{e}=\mat{e_1, \dots, e_n}^\top:n\times 1$,
+\end{itemize}
+as
+\begin{align*}
+\mv{y} &= \sum_{k=1}^p \mv{x}_k \beta_k + \mv{e} = \mv{X}\mv{\beta} + \mv{e} .
+\end{align*}
+\item The least squares estimate of $\mv{\beta}$ is \emph{in theory} given by $\wh{\mv{\beta}}=(\mv{X}^\top\mv{X})^{-1}\mv{X}^\top\mv{y}$.
+\item We will first analyse the floating point errors involved in $\mv{X}^\top\comp(\mv{y})$ and
+$(\mv{X}^\top\mv{X})^{-1}\comp(\mv{X}^\top\mv{y})$.
+\item Then we will develop a method for computing $\wh{\mv{\beta}}$ that does \emph{not} involve\\
+inverting any matrices, and avoids unneccesarily amplifying the\\ floating point errors.
+\item We need some analytical tools!
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{block}{Singular Value Decomposition (SVD, \code{svd(A)} in R)}
+For any rectangular matrix $\mv{A}\neq\mv{0}$, $n\times m$, there exist matrices $\mv{U}:n\times p$, $\mv{V}:m\times p$, and $\mv{D}=\diag\{d_1, \dots, d_p\}$ such that
+\begin{align*}
+\bm{U}^\top\mv{U} &= \mv{I}_p,\quad\text{i.e.\ the column vectors in $\mv{U}=\mat{\mv{u}_1, \dots, \mv{u}_p}$ are orthonormal,} \\
+\bm{V}^\top\mv{V} &= \mv{I}_p,\quad\text{i.e.\ the column vectors in $\mv{V}=\mat{\mv{v}_1, \dots, \mv{v}_p}$ are orthonormal, and}\\
+d_1 &\geq d_2 \geq \dots \geq d_r > 0 = d_{r+1} = \dots = d_p,
+\end{align*}
+for some $r \leq p = \min(n,m)$, and
+\begin{align*}
+\bm{A} &= \bm{U}\bm{D}\mv{V}^\top = \sum_{k=1}^r d_k \mv{u}_k \mv{v}_k^\top.
+\end{align*}
+The value $r$ is the \emph{rank} of $A$. A matrix with $\rank(A)=p$ is said to have \emph{full rank}.
+\end{block}
+\vfill
+The column vectors of $\mv{U}$ and $\mv{V}$ are called the left and right \emph{singular vectors} of\\
+$\mv{A}$, and the corresponding $d_1,\dots,d_p$ are the \emph{singular values} of $\mv{A}$.
+\vfill
+The SVD algorithm is also used for \emph{dimension reduction}\\ in \emph{Principal Component Analysis}.
+\end{frame}
+
+\begin{frame}[fragile]
+The \emph{complete} SVD expands $\mv{U}$ and $\mv{V}$ to square and completely orthogonal matrices
+$\mat{\mv{U} & \mv{U}_0}$ and $\mat{\mv{V} & \mv{V}_0}$ as needed, and expands $\mv{D}$ with zeros.
+
+For a \emph{tall} matrix with full rank, $n > m = p = r$. The complete decomposition is
+\begin{align*}
+\mv{A} &= \mat{\mv{U} & \mv{U}_0} \mat{\mv{D} \\ \mv{0}} \mv{V}^\top
+\end{align*}
+and
+\begin{align*}
+\mv{U}^\top\mv{U} &=\mv{I}_p,\qquad
+\mv{U}_0^\top\mv{U}_0 = \mv{I}_{n-p},\qquad
+\mv{U}^\top \mv{U}_0 = \mv{0}, \\
+\mv{U}\mv{U}^\top + \mv{U}_0\mv{U}_0^\top &= \mv{I}_n, \\
+\mv{V}^\top\mv{V} = \mv{V}\mv{V}^\top &= \mv{I}_m
+\end{align*}
+These identities allow us to split a vector $\mv{w}\in\R^n$ into a component $\mv{w}_A$ that lies within the vector space spanned by the columns of $\mv{A}$, and a component $\mv{w}_0$ orthogonal to $\mv{A}$:
+\begin{align*}
+\mv{w} &= \mv{U}\mv{U}^\top\mv{w} + \mv{U}_0\mv{U}_0^\top\mv{w} = \mv{w}_A + \mv{w}_0,
+&
+\mv{A}^\top\mv{w}_A &= \mv{A}^\top\mv{w},
+&
+\mv{A}^\top\mv{w}_0 &= \mv{0} .
+\end{align*}
+\ifbyhand{
+\begin{align*}
+\text{Proof: }
+\mv{A}^\top\mv{w}_A &=
+\mv{V}\mv{D}\mv{U}^\top \mv{U}\mv{U}^\top\mv{w}
+=
+\mv{V}\mv{D}\mv{I}_r \mv{U}^\top \mv{w}
+=
+\mv{A}^\top \mv{w}
+\\
+\mv{A}^\top\mv{w}_0 &=
+\mv{V}\mv{D}\mv{U}^\top \mv{U}_0\mv{U}_0^\top\mv{w}
+=
+\mv{V}\mv{D}\mv{0} \mv{U}_0^\top \mv{w}
+=
+\mv{0}
+\end{align*}
+}{
+\begin{align*}
+&
+\\&
+\end{align*}
+}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{block}{Vector length amplification}
+Multiplying with $\mv{A}^\top$ leads to different vector length amplification depending on in which direction $\mv{w}$ is pointing:
+\begin{align*}
+\|\mv{A}^\top\mv{w}\| &= \sqrt{\mv{w}^\top\mv{A}\mv{A}^\top\mv{w}}
+= \sqrt{\mv{w}^\top\mv{U}\mv{D}\mv{V}^\top\mv{V}\mv{D}\mv{U}^\top\mv{w}}
+= \sqrt{\mv{w}^\top\mv{U}\mv{D}^2\mv{U}^\top\mv{w}}
+\\&= \|\mv{D}\mv{U}^\top\mv{w}\|
+= \|\mv{D}\mv{U}^\top\mv{w}_A\|
+\end{align*}
+The norm is minimised when $\mv{w}_A=\mv{u}_p\|\mv{w}_A\|$ and maximised when $\mv{w}_A=\mv{u}_1\|\mv{w}_A\|$, so that
+\begin{align*}
+d_p\|\mv{w}_A\| &\leq \|\mv{A}^\top\mv{w}\| \leq d_1 \|\mv{w}_A\| .
+\end{align*}\vspace*{-5mm}
+\end{block}
+
+% eps^2|UU'y|^2 - |UU'(cy-y)|^2 = eps^2 y'UU'UU'y - (cy'UU'UU'cy - 2cy'UU'UU'y + y'UU'UU'y)
+% = (eps^2-1) y'UU'y - cy'UU'cy + 2cy'UU'y
+
+% |sum_j U_ij eps_j y_j|
+% is maximised by eps_j = eps_0 * sign(Uij y_j), so that
+% |sum_j U_ij eps_j y_j| <= eps_0 sum_j |U_ij y_j|
+%
+% |comp(w)_U-w_U| = |comp(w_U) - comp(w_U) + comp(w)_U - w_U|
+% \leq |comp(w_U) - w_U| + |comp(w_U) - comp(w)_U|
+% = |comp(w_U) - w_U| + |comp(w_U) - comp(comp(w)_U) + comp(comp(w)_U) - comp(w)_U|
+% \leq |comp(w_U) - w_U| + |comp(w_U) - comp(comp(w)_U)| + |comp(comp(w)_U) - comp(w)_U|
+% \leq eps_0 |w_U| + |comp(w_U) - comp(comp(w)_U)| + eps_0 |comp(w)_U|
+
+
+
+Each component of $\comp(\mv{w})$ has a relative error $\epsilon_i$, $|\epsilon_i|\lesssim\epsilon_0$.
+\begin{align*}
+\|\comp(\mv{w}) - \mv{w}\| &=
+\sqrt{\sum_{i=1}^n (\epsilon_i w_i)^2}
+\leq \max_{i\in\{1,\dots,n\}}(|\epsilon_i|)
+\sqrt{\sum_{i=1}^n w_i^2} \lesssim \epsilon_0 \|\mv{w}\| .
+\end{align*}
+For $\|[\comp(\mv{w})-\mv{w}]_A\|$, we'll ignore the additional $\sqrt{n}$ term\\
+from $\lesssim\epsilon_0(\|\mv{w}_A\| + \sqrt{n})$.
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Numerical matrix multiplication error}
+\begin{block}{Numerical error propagation: condition numbers}
+Let $\mv{X}=\mv{U}\mv{D}\mv{V}^\top$ be the SVD of $\mv{X}$, and we will assume $\mv{X}$ has full rank.
+
+Given that $\mv{X}^\top\mv{y}\neq\mv{0}$, the relative error of $\mv{X}^\top\mv{y}$ is
+\begin{align*}
+\frac{\|\mv{X}^\top \comp(\mv{y}) - \mv{X}^\top \mv{y}\|}{\|\mv{X}^\top \mv{y}\|}
+&=
+\frac{\|\mv{X}^\top [\comp(\mv{y}) - \mv{y}]\|}{\|\mv{X}^\top \mv{y}\|}
+\leq \frac{d_1 \|[\comp(\mv{y}) - \mv{y}]_U\|}{d_p\|\mv{y}_U\|}
+\lesssim
+\epsilon_0 \kappa(\mv{X}),
+\end{align*}
+where $\kappa(\mv{X})=d_1/d_p$ is the \emph{condition number} of $\mv{X}$.
+\end{block}
+
+For the second step of $\wh{\mv{\beta}}=(\mv{X}^\top\mv{X})^{-1}\comp(\mv{X}^\top\mv{y})$,
+\begin{align*}
+(\mv{X}^\top\mv{X})^{-1} &=
+(\mv{V}\mv{D}\mv{U}^\top\mv{U}\mv{D}\mv{V}^\top)^{-1}
+=
+(\mv{V}\mv{D}^2\mv{V}^\top)^{-1} =
+\mv{V}\mv{D}^{-2}\mv{V}^\top
+\end{align*}
+This looks like another SVD,
+except for a reverse order of the singular values, $1/d_p^2,\dots,1/d_1^2$.
+The same bounds as before apply, so that the condition number is $\kappa[(\mv{X}^\top\mv{X})^{-1}]=d_1^2/d_p^2=\kappa(\mv{X})^2$. The resulting relative computational error is
+\begin{align*}
+\frac{\|(\mv{X}^\top\mv{X})^{-1} \comp(\mv{X}^\top\mv{y}) - (\mv{X}^\top\mv{X})^{-1}\mv{X}^\top \mv{y}\|}{
+\|(\mv{X}^\top\mv{X})^{-1} \mv{X}^\top \mv{y}\|}
+&\lesssim
+\epsilon_0 \kappa(\mv{X})^2 .
+\end{align*}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Numerical example}
+<<>>=
+n <- 100000
+X <- cbind(1, (1:n), (1:n)^2) # 3 columns, (badly!) defining a quadratic regression curve model
+
+## Compute the condition number
+s <- svd(X) # Gives a list(u, d, v) for U, D=diag(d), and V
+print(condition_number <- max(s$d) / min(s$d))
+## Relative error bound for X'y
+.Machine$double.eps * condition_number
+## Relative error bound for (X'X)^(-1)
+.Machine$double.eps * condition_number^2
+@
+\end{frame}
+\begin{frame}[fragile]
+\frametitle{Numerical solves}
+Let's investigate a case without measurement noise, so that the solution in a perfect would would be exactly equal to the true parameters:
+<<>>=
+beta_true <- c(1, 1, 1)
+y <- X %*% beta_true # '%*%' is the matrix multiplication operator in R
+@
+
+A direct solve of the linear system $\mv{X}^\top\mv{X}\wh{\mv{\beta}}=\mv{X}^\top\mv{y}$ (the so called \emph{normal equations}) fails:
+<<>>=
+beta1 <- solve(t(X) %*% X, t(X) %*% y)
+@
+Using the computed SVD, $\wh{\mv{\beta}}=\mv{V}\mv{D}^{-1}\mv{U}^\top\mv{y}$:
+<<echo=FALSE>>=
+vec_norm <- function(x) { sum(x^2)^0.5 }
+@
+<<>>=
+beta2 <- s$v %*% ((t(s$u) %*% y) / s$d)
+vec_norm(beta2 - beta_true) / vec_norm(beta_true) # vec_norm will be defined in the lab.
+@
+The error is a factor $\sim 20$ larger than our estimated bound $\epsilon_0\kappa(\mv{X})=\epsilon_0\kappa(\mv{V}\mv{D}^{-1}\mv{U}^\top)=\Sexpr{.Machine$double.eps * condition_number}$.
+
+Note: This is reasonable. What issues did our analysis ignore?
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{QR decomposition}
+We introduced the SVD mainly to help with our theoretical analysis, but it is expensive to compute.
+
+For least squares problems, the main alternative is the following method:
+\begin{block}{QR decomposition (here only for tall matrices)}
+For any square or tall matrix $\mv{A}:n\times m$, $n\geq m$, there exist matrices $\mv{Q}:n\times m$ and $\mv{R}:m\times m$, such that $\mv{Q}^\top\mv{Q}=\mv{I}_m$ and $\mv{R}$ is upper triangular, and $\mv{A}=\mv{Q}\mv{R}$.
+\end{block}
+The least squares solution based on $\mv{X}=\mv{Q}\mv{R}$ becomes
+\begin{align*}
+\wh{\mv{\beta}} &=
+(\mv{R}^\top\mv{Q}^\top\mv{Q}\mv{R})^{-1}\mv{R}^\top\mv{Q}^\top\mv{y}
+=
+\mv{R}^{-1}\mv{Q}^\top\mv{y} \qquad\text{(if $\mv{X}$ has full rank, $\mv{R}$ is invertible)}
+\end{align*}
+i.e.\ one matrix multiplication with $\kappa(\mv{Q})=1$ and one triangular linear system solve, $\kappa(\mv{R})=\kappa(\mv{X})$.
+<<>>=
+beta3 <- qr.solve(X, y)
+vec_norm(beta3 - beta_true) / vec_norm(beta_true)
+@
+About half the error of the SVD method.  What about the speed?
+\end{frame}
+<<echo=FALSE,eval=FALSE>>=
+## For the lab
+qrX <- qr(X)
+beta3 <- qr.solve(qrX, y)
+vec_norm(beta3 - beta_true) / vec_norm(beta_true)
+beta3 <- beta3 + qr.solve(qrX, y - X %*% beta3)
+vec_norm(beta3 - beta_true) / vec_norm(beta_true)
+@
+
+<<echo=FALSE,eval=FALSE>>=
+## For a lab??
+system.time({
+cholXX <- chol(t(X) %*% X)
+beta4 <- backsolve(cholXX, forwardsolve(t(cholXX), t(X) %*% y))
+vec_norm(beta4 - beta_true) / vec_norm(beta_true)
+beta4 <- beta4 + backsolve(cholXX, forwardsolve(t(cholXX), t(X) %*% (y - X %*% beta4)))
+vec_norm(beta4 - beta_true) / vec_norm(beta_true)
+})
+system.time({beta3 <- qr.solve(qrX, y)})
+@
+
+\begin{frame}[fragile]
+\frametitle{Computational cost}
+\begin{itemize}
+\item
+For large models, computational speed and memory usage are vital issues.
+\item Choosing the right algorithm can sometimes mean the difference of waiting for a few seconds and waiting for several weeks!
+\end{itemize}
+<<warning=FALSE>>=
+n <- 100000
+m <- 50
+X <- matrix(rnorm(n * m), n, m)
+timings <- bench::mark(svd(X), qr(X), check = FALSE)
+@
+<<warning=FALSE,echo=FALSE>>=
+suppressPackageStartupMessages(library(tidyverse))
+timings %>%
+  select(expression, median, `itr/sec`) %>%
+  knitr::kable()
+@
+\vfill
+Both methods take $\propto n^3$ operations to compute for a wide range of least squares\\
+problems, but QR is consistently around a factor 3 faster than SVD.
+
+In R, the \code{lm()} function uses QR decomposition internally.
+
+%As a bonus, the matrix $\mv{Q}$ isn't needed explicitly. Only the information needed to compute $\mv{Q}^\top\mv{y}$ and $\mv{R}$ is used, with can lead to potential speedups.
+\end{frame}
+<<echo=FALSE,eval=FALSE>>=
+## For a lab??
+rbind(
+  system.time({svd(X)}),
+  system.time({qr(X)}),
+  system.time({chol(t(X) %*% X)})
+)
+@
+
+
+
+
+
+\begin{frame}[fragile]
+\frametitle{Summary}
+\begin{itemize}
+\item If we're not careful, the finite computer representation error may be amplified by computations.
+\item Theoretically correct formulas are not necessarily appropriate to compute directly as written.
+\item Numerical matrix decomposition methods and method parameters chosen by minimising error bounds can help minimise numerical errors.
+\item Large condition numbers may need manual intervention; can we formulate a linear statistical model in more than one way? We'll see some examples in Lab 8 of simple condition number reduction methods.
+\end{itemize}
+\end{frame}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\begin{frame}[fragile]
+\frametitle{Approximation errors for numerical derivatives}
+\begin{block}{Finite differences}
+The derivative of a function $f(\theta)$ can be approximated by the asymmetric finite difference
+\begin{align*}
+\comp\left\{
+\frac{\comp[f(\comp[\theta+h])] - \comp[f(\theta)]}{h}
+\right\}
+&\approx
+\frac{f(\theta+h) - f(\theta)}{h}
+\approx f'(\theta) .
+\end{align*}
+How small should we choose $h$ in order to minimise the approximation error?
+\end{block}
+Local polynomial approximations will help in analysing the errors:
+\begin{block}{Taylor's theorem}
+For a function $f:\R\mapsto\R$ with two continuous derivatives near a $\theta\in\R$,
+\begin{align*}
+f(\theta+h) &= f(\theta) + h f'(\theta+t_1h)\text{\color{black}, and }\\
+f(\theta+h) &= f(\theta) + h f'(\theta) + \frac{h^2}{2}f''(\theta+t_2h),
+\end{align*}
+for some $t_1\in[0,1]$ and $t_2\in[0,1]$.
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{First order difference approximation error}
+Assume that $\theta$ is stored exactly.
+
+First, consider the error in computing $f(\theta+h)$:
+\begin{align*}
+\comp\{f(\comp[\theta+h])\} &=
+(1+\epsilon_f)f([1+\epsilon_\theta][\theta+h])
+\\&
+\approx
+(1+\epsilon_f)\left[f(\theta+h) + \epsilon_\theta(\theta+h)f'(\theta+t_1h)\right]
+\\&\approx
+f(\theta+h) +\epsilon_f f(\theta+h) + \epsilon_\theta \theta f'(\theta+t_1h)
++\text{h.o.t.},
+\end{align*}
+for some $|\epsilon_f|\lesssim\epsilon_0$ and $|\epsilon_\theta|\lesssim\epsilon_0$.
+
+Assume that $f(\cdot)$ is bounded near $\theta$, with $|f(\cdot)|\leq L_0$, $|f'(\cdot)|\leq L_1$, and $|f''(\cdot)|\leq L_2$. Then
+\begin{align*}
+\left|
+\frac{\comp\{f(\comp[{\theta}+h])\} - \comp\{f({\theta})\}}{h} -
+\frac{f({\theta}+h) - f({\theta})}{h}
+\right|
+&\lesssim \frac{\epsilon_0(2L_0+|\theta|L_1)}{h}.
+\end{align*}
+\end{frame}
+\begin{frame}
+\frametitle{First order difference approximation error (cont.)}
+Applying Taylor's theorem to the exact finite difference leads to
+\begin{align*}
+\left|
+\frac{f({\theta}+h) - f({\theta})}{h} -
+f'(\theta)
+\right| &=
+\frac{h}{2}
+\left| f''(\theta+t_2h)
+\right|
+\leq \frac{h L_2}{2}.
+\end{align*}
+Using the triangle inequality ($|E_1+E_2|\leq|E_1|+|E_2|$), we get the total error bound,
+\begin{align*}
+\left|
+\frac{\comp\{f(\comp[{\theta}+h])\} - \comp\{f({\theta})\}}{h} -
+f'(\theta)
+\right|
+&\lesssim
+\frac{\epsilon_0 (2L_0+|\theta|L_1)}{h} + \frac{h L_2}{2},
+\end{align*}
+which is minimised for $h=\sqrt{\epsilon_0\frac{4L_0+2|\theta|L_1}{L_2}}\propto \epsilon_0^{1/2}$.
+\vfill
+Note:\\ If $\theta$ wasn't stored exactly, the additional error term would be
+\begin{align*}
+|f'(\comp[\theta])-f'(\theta)|
+&\approx
+|f'(\theta)+\epsilon_3 \theta f''(\theta+t_3 \epsilon_3\theta)-f'(\theta)| \lesssim \epsilon_0|\theta| L_2,
+\end{align*}
+which doesn't depend on $h$.
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Optimal stepsize for finite differences}
+Let $L_k$ be bounds for the $k$:th derivatives around $\theta$. The errors from \emph{floating point cancellation} and \emph{Taylor series truncation} can be bounded and minimised by choosing the \emph{step size} $h$:
+\begin{itemize}
+\item Asymmetric first order differences for $f'(\theta)$, using $f(\theta)$ and $f(\theta+h)$, gives the bound
+\begin{align*}
+\hspace*{-7mm}&\lesssim\frac{\epsilon_0 (2L_0+|\theta|L_1)}{h} + \frac{h L_2}{2},
+\quad\text{\color{black}
+which is minimised for \color{otherblue}$h=\sqrt{2\epsilon_0\frac{2L_0+|\theta|L_1}{L_2}}\sim \epsilon_0^{1/2}$.}
+\end{align*}
+\item Symmetric first order differences for $f'(\theta)$, using $f(\theta-h)$ and $f(\theta+h)$, gives the bound
+\begin{align*}
+\hspace*{-7mm}&\lesssim\frac{\epsilon_0 (L_0+|\theta|L_1)}{h} + \frac{h^2 L_3}{6},
+\quad\text{\color{black}
+which is minimised for \color{otherblue}$h=\left(3\epsilon_0\frac{L_0+|\theta|L_1}{L_3}\right)^{1/3}\sim \epsilon_0^{1/3}$.}
+\end{align*}
+\item
+2nd order differences for $f''(\theta)$, using $f(\theta-h)$, $f(\theta+h)$, and $f(\theta)$, gives the bound
+\begin{align*}
+\hspace*{-7mm}&\lesssim\frac{\epsilon_0 (4L_0+2|\theta|L_1)}{h^2} + \frac{h^2 L_4}{12},
+\quad\text{\color{black}
+which is minimised for \color{otherblue}$h=\left(24\epsilon_0\frac{2L_0+|\theta|L_1}{L_4}\right)^{1/4}\sim \epsilon_0^{1/4}$.}
+\end{align*}
+\item Approximate rule of thumb: Plugin $L_k\equiv 1$ and a representative $|\theta|$ value.
+\end{itemize}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+%\frametitle{Errors and bounds for asymmetric and symmetric 1st order differences}
+<<echo=FALSE>>=
+f0 <- function(x) exp(x)
+f1 <- function(x) exp(x)
+f2 <- function(x) exp(x)
+f3 <- function(x) exp(x)
+f4 <- function(x) exp(x)
+
+f0 <- function(x) cos(x)
+f1 <- function(x) -sin(x)
+f2 <- function(x) -cos(x)
+f3 <- function(x) sin(x)
+f4 <- function(x) cos(x)
+
+L0 <- function(x, h) vapply(h, function(h) max(abs(f0(x)), abs(f0(x+h))), 1.0)
+L1 <- function(x, h) vapply(h, function(h) max(abs(f1(x)), abs(f1(x+h))), 1.0)
+L2 <- function(x, h) vapply(h, function(h) max(abs(f2(x)), abs(f2(x+h))), 1.0)
+L3 <- function(x, h) vapply(h, function(h) max(abs(f3(x)), abs(f3(x+h))), 1.0)
+L4 <- function(x, h) vapply(h, function(h) max(abs(f4(x)), abs(f4(x+h))), 1.0)
+bound1.0 <- function(x,h) { .Machine$double.eps*(2*L0(x,h))/h + h*L2(x,h)/2 }
+bound1.1 <- function(x,h) { .Machine$double.eps*(2*L0(x,h)+L1(x,h)*abs(x))/h + h*L2(x,h)/2 }
+bound1.2 <- function(x,h) { .Machine$double.eps*(2*L0(x,h)+2*L1(x,h)*abs(x))/(2*h) + h^2*L3(x,h)/6 }
+bound2.0 <- function(x,h) { 4*.Machine$double.eps*L0(x,h)/h^2 + h^2*L4(x,h)/12 }
+minim1.0 <- function(x,h=0) { sqrt(.Machine$double.eps*4*L0(x,h)/L2) }
+minim1.1 <- function(x,h=0) { sqrt(.Machine$double.eps*2*(2*L0(x,h)+L1(x,h)*abs(x0))/L2(x,h)) }
+minim1.2 <- function(x,h=0) { (.Machine$double.eps*3*(2*L0(x,h)+2*L1(x,h)*abs(x))/2/L3(x,h))^(1/3) }
+minim2.0 <- function(x,h=0) { (.Machine$double.eps*6*(8*L0(x,h))/L4(x,h))^(1/4) }
+deriv1.1 <- function(x, h) { (f0(x + h) - f0(x)) / h }
+deriv1.2 <- function(x, h) { (f0(x + h) - f0(x - h)) / (2 * h) }
+deriv2.0 <- function(x, h) { (f0(x + h) + f0(x - h) - 2 * f0(x)) / h^2 }
+maxi <- 1
+x0 <- 10
+mini <- max(1, abs(x0)) * 1e-16
+x00 <- 100 ## Representative |x| value for the bounds
+
+curve(abs(deriv1.2(x0, x) - f1(x0))/abs(f1(x0)), 1e-16,maxi,n=10000, col="grey",log="xy",
+      xlab="h", ylab="Errors and error bounds",
+      main="Asymmetric (black/red), and symmetric (grey/blue) 1st order difference errors")
+curve(abs(deriv1.1(x0, x) - f1(x0))/abs(f1(x0)), add=TRUE, n=10000, col="black")
+curve(bound1.1(x0,x)/abs(f1(x0)), add=TRUE, n=1000, col=2, lwd=2)
+# curve(bound1.0(x0,x)/abs(f1(x0)), add=TRUE, n=1000, col=3, lwd=2)
+curve(bound1.2(x0,x)/abs(f1(x0)), add=TRUE, n=1000, col=4, lwd=2)
+
+abline(v=minim1.1(x0), col=2)
+# abline(v=minim1.0(x0), col=3)
+abline(v=minim1.2(x0), col=4)
+#abline(v = .Machine$double.eps^(1/2), col = 2, lty = 2)
+#abline(v = .Machine$double.eps^(1/3), col = 4, lty = 2)
+abline(v = (.Machine$double.eps*(2+x00))^(1/2), col = 2, lty = 2)
+abline(v = (.Machine$double.eps*3*(1+x00))^(1/3), col = 4, lty = 2)
+abline(h = 10^(-15:14), col = "grey", lty = 3)
+@
+\end{frame}
+\begin{frame}[fragile]
+%\frametitle{Error bounds for 2nd order differences/derivatives}
+<<echo=FALSE>>=
+curve(abs(deriv2.0(x0, x) - f2(x0))/abs(f2(x0)), 1e-16, maxi, n=10000, log="xy",
+      xlab="h", ylab="Errors and error bounds", main="2nd order difference errors")
+curve(bound2.0(x0,x)/abs(f2(x0)), add=TRUE, n=1000, col=2, lwd=2)
+abline(v=minim2.0(x0), col=2)
+#abline(v = .Machine$double.eps^(1/4), col = 2, lty = 2)
+abline(v = (.Machine$double.eps*24*(2+x00))^(1/4), col = 2, lty = 2)
+abline(h = 10^(-15:15), col = "grey", lty = 3)
+@
+\end{frame}
+
+
+
+
+
+
+
+\end{document}
+
+
+\begin{frame}[fragile]
+\begin{align*}
+\comp(f(\comp(\theta + h\Delta)))
+&=
+\comp(f((1+\epsilon_1)(\theta + h\Delta)))
+\\&=
+\comp(f(\theta+h\Delta + \epsilon_1(\theta+h\Delta)))
+\\&=
+\comp(f(\theta+h\Delta) + \epsilon_1(\theta+h\Delta) f'(\theta+h\Delta) + \mathcal{O}(\epsilon_1^2))
+\\&=
+f(\theta+h\Delta) + \epsilon_1(\theta+h\Delta) f'(\theta+h\Delta) + \mathcal{O}(\epsilon_1^2)
+\\&\phantom{= }+
+\epsilon_2 (f(\theta+h\Delta) + \epsilon_1(\theta+h\Delta) f'(\theta+h\Delta) + \mathcal{O}(\epsilon_1^2))
+\\&=
+f(\theta+h\Delta) + \epsilon_2 f(\theta+h\Delta) + \epsilon_1\theta f'(\theta+h\Delta) + \mathcal{O}(\epsilon_1^2 + \epsilon_1\epsilon_2 + \epsilon_1 h)
+\end{align*}
+\begin{align*}
+|\comp(f(\comp(\theta + h\Delta))) - f(\theta + h\Delta)|
+&\lesssim \epsilon_0 L_0 + \epsilon_0 |\theta| L_1
+\end{align*}
+\end{frame}
+
+
+
+
+
+
+\end{document}

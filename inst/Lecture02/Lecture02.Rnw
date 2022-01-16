@@ -1,0 +1,345 @@
+\documentclass[compress,handout,t,10pt,fleqn,aspectratio=169]{beamer}
+
+\input{common.tex}
+\input{commonbeamer.tex}
+\togglefalse{byhand}
+%\toggletrue{byhand}
+<<echo=FALSE>>=
+solutions <- TRUE
+opts_chunk$set(fig.path = 'figure/L02-',
+               fig.align = 'center',
+               fig.show = 'hold',
+               size = 'footnotesize',
+               fig.width = 8,
+               fig.height = 5.2,
+               out.width = "\\linewidth",
+               out.height = "0.65\\linewidth")
+knit_hooks$set(inline = function(x) {
+  if (is.numeric(x)) return(knitr:::format_sci(x, 'latex'))
+  highr::hi_latex(x)
+})
+@
+% Handle solutions inclusion toggle.
+\togglefalse{solutions}
+<<echo=FALSE, results="asis">>=
+if (solutions) {
+  cat("\\toggletrue{solutions}")
+}
+@
+
+\begin{document}
+
+
+
+\begin{frame}[fragile]
+  \frametitle{Optimisation for parameter estimation \hfill\small(MATH10093)}\vspace*{-2mm}
+\begin{itemize}
+\item In statistics, we often want to find the combination $\wh{\mv{\theta}}$ of parameter values $\mv{\theta}=\{\theta_1,\dots,\theta_m\}$ that maximises the \emph{likelihood function} $L(\mv{y};\mv{\theta})$.
+\item In special cases, we can use analysis to find closed form expressions for $\wh{\mv{\theta}}$.
+\\
+Example: If $\mv{y}=\{y_1,\dots,y_n\}$ are independent observations of $y_i\sim\pN(\mu,\sigma^2)$, the likelihood is
+\begin{align*}
+L(\mv{y};\mu,\sigma^2) &=
+\prod_{i=1}^n \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left[-\frac{(y_i - \mu)^2}{2\sigma^2}\right]
+\end{align*}
+which is maximised by $\wh{\mu}=\frac{1}{n}\sum_{i=1}^n y_i$ and $\wh{\sigma^2}=\frac{1}{n}\sum_{i=1}^n (y_i - \wh{\mu})^2$.
+\end{itemize}
+\end{frame}
+\begin{frame}[fragile]
+  \frametitle{Optimisation for parameter estimation}\vspace*{-2mm}
+\begin{itemize}
+\item For more complicated models, it may be difficult or impossible to find a solution by hand.
+\item Example: Change the example model by letting $\sigma^2$ depend on a covariate, e.g.\ as $\log(\sigma_i)=\theta_1+x_i \theta_2$.\\
+Now, the $y_i$ are independent realisations from $y_i\sim\pN(\mu,\sigma_i^2)$.
+\item This \emph{log-linear} model for the standard deviation doesn't provide a simple/analytical maximum likelihood solution to finding $\wh{\theta}_1$ and $\wh{\theta}_2$.
+\item We need \emph{numerical} optimisation methods!
+\item We usually convert the likelihood function into a related \emph{target function} $f(\mv{\theta})$ that is then \emph{minimised}.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Target function $f(\sigma)=L(\mv{y};\sigma)$; has inflexion points}\vspace*{-10mm}
+<<echo=FALSE>>=
+y <- 0
+mu <- 0.5
+curve(dnorm(y, mean=mu, sd=x), 0.125, 4, n=1000,
+      ylab=expression(f(sigma)), xlab=expression(sigma))
+@
+\end{frame}
+\begin{frame}[fragile]
+\frametitle{Target function $f(\sigma)=\log L(\mv{y};\sigma)$; is very skewed}\vspace*{-10mm}
+<<echo=FALSE>>=
+curve(dnorm(y, mean=mu, sd=x, log=TRUE), 0.125, 4, n=1000,
+      ylab=expression(f(sigma)), xlab=expression(sigma))
+@
+\end{frame}
+\begin{frame}[fragile]
+\frametitle{Target function $f(\theta)=\log L(\mv{y};\sigma=\mathrm{e}^\theta)$; have theory for \emph{minimisation}}\vspace*{-10mm}
+<<echo=FALSE>>=
+curve(dnorm(y, mean=mu, sd=exp(x), log=TRUE), log(0.125), log(4), n=1000,
+      ylab=expression(f(theta)), xlab=expression(theta))
+@
+\end{frame}
+\begin{frame}[fragile]
+\frametitle{Target function $f(\theta)=- \log L(\mv{y};\sigma=\mathrm{e}^\theta)$; the \emph{negative log-likelihood}}\vspace*{-10mm}
+<<echo=FALSE>>=
+curve(-dnorm(y, mean=mu, sd=exp(x), log=TRUE), log(0.125), log(4), n=1000,
+      ylab=expression(f(theta)), xlab=expression(theta))
+@
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Searching for a minimum}
+Let $\mv{g}(\mv{\theta})$ be the gradient vectors of $f(\cdot)$, i.e.\ $g_j(\mv{\theta})=\frac{\partial f(\mv{\theta})}{\partial\theta_j}$. At a minimum, $\|\mv{g}(\mv{\theta})\|=0$.
+\begin{block}{Local minimum search algorithm}
+Start at some $\mv{\theta}^{[0]}$, and iterate over $\mv{\theta}^{[k]}$, $k=0,1,2,\dots$:
+\begin{enumerate}
+\item Find a \emph{descent direction} vector $\mv{d}^{[k]}$ from $\mv{\theta}^{[k]}$. This means that
+$\mv{g}(\mv{\theta}^{[k]})^\top \mv{d}^{[k]}< 0$.
+\item Perform a \emph{line search}, by finding a \emph{step scaling} $\alpha_k>0$ such that the new $f$ value is sufficiently improved:\\
+$f(\mv{\theta}^{[k]}+\alpha_k\mv{d}^{[k]}) < f(\mv{\theta}^{[k]}) + \epsilon \, \alpha_k \mv{g}(\mv{\theta}^{[k]})^\top \mv{d}^{[k]}$\\
+for some fixed $0<\epsilon<1$ (can be small, e.g.\ $10^{-3}$)
+\item Let $\mv{\theta}^{[k+1]}=\mv{\theta}^{[k]} + \alpha_k\mv{d}^{[k]}$
+\end{enumerate}
+Terminate the iteration when either no improvement is found or we have reached a minimium: \vspace*{-2mm}
+\begin{align*}
+k &> \text{maximum allowed iteration steps,} \\
+\|\mv{\theta}^{[k+1]}-\mv{\theta}^{[k]}\| &< \text{tol}_x, \\
+f(\mv{\theta}^{[k]}) - \mv{f}(\mv{\theta}^{[k+1]}) &< \text{tol}_f\text{, or}\\
+\|\mv{g}(\mv{\theta}^{[k]})\| &< \text{tol}_g.
+\end{align*}
+\end{block}
+\end{frame}
+
+\begin{frame}
+\begin{block}{A simple and practical line search method}
+Given a valid descent direction $\mv{d}^{[k]}$ we know that an $\alpha_k>0$ exists, such that the function value at $\mv{\theta}^{[k]}+\alpha_k\mv{d}^{[k]}$ is lower than at the starting point, $f(\mv{\theta}^{k})$.
+
+A simple \emph{inexact line search} method:
+\begin{enumerate}
+\item Let $\alpha_k=1$.
+\item Stop if $f(\mv{\theta}^{[k]}+\alpha_k\mv{d}^{[k]}) < f(\mv{\theta}^{[k]}) + \epsilon\, \alpha_k \mv{g}(\mv{\theta}^{[k]})^\top \mv{d}^{[k]}$.
+\item Otherwise, divide $\alpha_k$ by 2, and go back to step 2.
+\end{enumerate}
+Provided that $0<\epsilon<1$, this iteration will terminate.
+\end{block}
+\end{frame}
+\begin{frame}
+\begin{block}{Gradient descent direction with adaptive step length}
+The most basic descent direction is the reverse gradient:
+\begin{align*}
+\mv{d}^{[k]} &= - \gamma_k \mv{g}(\mv{\theta}^{[k]}) / \|\mv{g}(\mv{\theta}^{[k]})\| ,
+\end{align*}
+where $\gamma_k>0$ is the \emph{proposed step length}. A fixed $\gamma_k$ is inefficient.
+
+In the first step, let $\gamma_0=1$, and for $k=1,2,\dots$,\\
+if $\alpha_{k-1}=1$ (the proposed length was OK),
+let $\gamma_k=3\gamma_{k-1}/2$ (try a longer step next time),\\
+otherwise $\gamma_k=\alpha_{k-1}\gamma_{k-1}$ (reuse the latest actual accepted step length).
+\end{block}
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Newton optimisation}
+A second order Taylor series approximation of $f(\cdot)$ contains useful information about the size shape of the target function.\\
+Let $\mv{H}(\mv{\theta})$ be the second order derivative matrix (or \emph{Hessian}) of $f(\cdot)$, with $H_{ij}(\mv{\theta})=\frac{\partial^2f(\mv{\theta})}{\partial\theta_i\partial\theta_j}$.
+\begin{block}{Newton search direction}
+The quadratic approximation of $f(\cdot)$,
+\begin{align*}
+f(\mv{\theta}+\mv{d}) &\approx
+f(\mv{\theta}) + \mv{g}(\mv{\theta})^\top \mv{d} + \frac{1}{2}\mv{d}^\top \mv{H}(\mv{\theta}) \mv{d},
+\end{align*}
+constructed at $\mv{\theta}^{[k]}$, is minimised by taking a step
+\begin{align*}
+\mv{d}^{[k]} &= - \mv{H}(\mv{\theta}^{[k]})^{-1} \mv{g}(\mv{\theta}^{[k]})
+\end{align*}
+if the Hessian is positive definite (has strictly positive eigenvalues).
+\end{block}
+Bad news: The Hessian $\mv{H}$ is not always positive definite far away from the minimum.
+
+Good news: Replacing $\mv{H}$ by \emph{any} positive definite matrix leads to a descent direction.
+
+Solution: Find practical approximations to $\mv{H}$ that are positive definite. Example: \emph{BFGS}
+\end{frame}
+
+\begin{frame}
+\frametitle{Quasi-Newton method example: BFGS}
+One of the most popular \emph{Quasi-Newton} methods requires only function values and gradients.
+\begin{block}{Broyden-Fletcher-Goldfarb-Shanno (BFGS)}
+The BFGS method can be formulated to work directly with an approximation to $\mv{H}(\mv{\theta})^{-1}$, removing the need to solve a linear system to find the descent direction.
+\begin{enumerate}
+\item Let $\mv{B}^{[0]}$ be a guess of $\mv{H}(\mv{\theta}^{[0]})^{-1}$.
+\item For each $k$, compute the step $\mv{a}_k=\alpha_k\mv{d}^{[k]}$ from line search using the search direction $\mv{d}^{[k]}=-\mv{B}^{[k]}\mv{g}(\mv{\theta}^{[k]})$.
+\item Compute $\mv{b}_k=\mv{g}(\mv{\theta}^{[k]}+\mv{a}_k)-\mv{g}(\mv{\theta}^{[k]})$,
+and update the $\mv{B}$ matrix:
+\begin{align*}
+\mv{B}^{[k+1]} &= \mv{B}^{[k]} + \frac{\mv{a}_k^\top\mv{b}_k + \mv{b}_k^\top \mv{B}^{[k]} \mv{b}_k}{(\mv{a}_k^\top\mv{b}_k)^2} \mv{a}_k\mv{a}_k^\top - \frac{\mv{B}^{[k]}\mv{b}_k\mv{a}_k^\top + \mv{a}_k\mv{b}_k^\top\mv{B}^{[k]}}{\mv{a}_k^\top\mv{b}_k}
+\end{align*}
+The equations guarantee that $\mv{B}^{[k]}$ stays positive definite.
+\end{enumerate}
+\end{block}
+The initial $\mv{B}^{[0]}$ is often chosen to be either proportional to an identity matrix, or a diagonal matrix based on the diagonal elements of $\mv{H}(\mv{\theta}^{[0]})$, which costs only around twice as much as a single gradient calculation.
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Computational cost considerations}
+\begin{itemize}
+\item Computing $f$, $\mv{g}$, and $\mv{H}$ is often expensive.
+\item When using finite differences, the cost of $\mv{g}$ is proportional to $m$, and the cost of $\mv{H}$ is proportional to $m^2$.
+\item We want to balance the cost per iteration with the number of iterations required to reach the minimum.
+\item It's usually not worth computing the actual second order derivatives, unless we can find a closed form positive definite Hessian approximation.
+\item From the theory of negative log-likelihood functions it is known that the \emph{expected Hessian},
+$\wt{\mv{H}}(\mv{\theta})=\pE_{\mv{y}|\mv{\theta}}[\mv{H}(\mv{\theta})]$  is always positive definite. Using this in place of the \emph{observed Hessian} $\mv{H}(\mv{\theta})$ is called \emph{Fisher Scoring}.
+\item Conclusion:
+\begin{itemize}
+\item For smooth target functions with cheap gradients, BFGS or Fisher Scoring is preferable
+\item For less smooth target functions or expensive gradients, the Simplex method is preferable (robust and uses only $f$ values, see Computer Lab 2; this is also the default method in \code{optim()} in R).
+\end{itemize}
+\item In Computer Lab 2, you will experiment with different target functions and optimisation methods in a graphical interactive R tool.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Fisher Scoring example}
+Let $y_i\sim \pN(\mu(\mv{\theta}), \sigma(\mv{\theta})^2)$ (independent),
+$\mu(\mv{\theta})=\theta_1$, $\sigma(\mv{\theta})=\mathrm{e}^{\theta_2}$. The negative log-likelihood is
+\begin{align*}
+f(\theta_1,\theta_2) &=
+\frac{n}{2}\log(2\pi) + n\theta_2 + \frac{1}{2\mathrm{e}^{2\theta_2}}\sum_{i=1}^n (y_i-\theta_1)^2
+\end{align*}
+The gradient elements are
+\begin{align*}
+g_1(\theta_1,\theta_2) &=
+- \frac{1}{\mathrm{e}^{2\theta_2}}\sum_{i=1}^n (y_i-\theta_1),
+&
+g_2(\theta_1,\theta_2) &=
+n - \frac{1}{\mathrm{e}^{2\theta_2}}\sum_{i=1}^n (y_i-\theta_1)^2
+\end{align*}
+The observed and expected Hessian elements are
+\begin{align*}
+H_{11}(\theta_1,\theta_2) &=
+\frac{n}{\mathrm{e}^{2\theta_2}},
+&
+H_{12}(\theta_1,\theta_2) &=
+\frac{2}{\mathrm{e}^{2\theta_2}}\sum_{i=1}^n (y_i-\theta_1),
+&
+H_{22}(\theta_1,\theta_2) &=
+\frac{2}{\mathrm{e}^{2\theta_2}}\sum_{i=1}^n (y_i-\theta_1)^2,
+\\
+\wt{H}_{11}(\theta_1,\theta_2) &=
+\frac{n}{\mathrm{e}^{2\theta_2}},
+&
+\wt{H}_{12}(\theta_1,\theta_2) &= 0,
+&
+\wt{H}_{22}(\theta_1,\theta_2) &= 2n.
+\end{align*}
+The expected Hessian is diagonal with positive elements (so clearly positive definite) and much cheaper to compute, since the observations are not involved!
+\end{frame}
+
+
+
+
+\end{document}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Optimal stepsize for finite differences}
+Let $L_k$ be bounds for the $k$:th derivatives around $\theta$. The errors from \emph{floating point cancellation} and \emph{Taylor series truncation} can be bounded and minimised by choosing the \emph{step size} $h$:
+\begin{itemize}
+\item Asymmetric first order differences for $f'(\theta)$, using $f(\theta)$ and $f(\theta+h)$, gives the bound
+\begin{align*}
+\hspace*{-7mm}&\lesssim\frac{\epsilon_0 (2L_0+|\theta|L_1)}{h} + \frac{h L_2}{2},
+\quad\text{\color{black}
+which is minimised for \color{otherblue}$h=\sqrt{2\epsilon_0\frac{2L_0+|\theta|L_1}{L_2}}\sim \epsilon_0^{1/2}$.}
+\end{align*}
+\item Symmetric first order differences for $f'(\theta)$, using $f(\theta-h)$ and $f(\theta+h)$, gives the bound
+\begin{align*}
+\hspace*{-7mm}&\lesssim\frac{\epsilon_0 (L_0+|\theta|L_1)}{h} + \frac{h^2 L_3}{6},
+\quad\text{\color{black}
+which is minimised for \color{otherblue}$h=\left(3\epsilon_0\frac{L_0+|\theta|L_1}{L_3}\right)^{1/3}\sim \epsilon_0^{1/3}$.}
+\end{align*}
+\item
+2nd order differences for $f''(\theta)$, using $f(\theta-h)$, $f(\theta+h)$, and $f(\theta)$, gives the bound
+\begin{align*}
+\hspace*{-7mm}&\lesssim\frac{\epsilon_0 (4L_0+2|\theta|L_1)}{h^2} + \frac{h^2 L_4}{12},
+\quad\text{\color{black}
+which is minimised for \color{otherblue}$h=\left(24\epsilon_0\frac{2L_0+|\theta|L_1}{L_4}\right)^{1/4}\sim \epsilon_0^{1/4}$.}
+\end{align*}
+\item Approximate rule of thumb: Plugin $L_k\equiv 1$ and a representative $|\theta|$ value.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+%\frametitle{Errors and bounds for asymmetric and symmetric 1st order differences}
+<<echo=FALSE>>=
+f0 <- function(x) exp(x)
+f1 <- function(x) exp(x)
+f2 <- function(x) exp(x)
+f3 <- function(x) exp(x)
+f4 <- function(x) exp(x)
+f0 <- function(x) cos(x)
+f1 <- function(x) -sin(x)
+f2 <- function(x) -cos(x)
+f3 <- function(x) sin(x)
+f4 <- function(x) cos(x)
+L0 <- function(x, h) vapply(h, function(h) max(abs(f0(x)), abs(f0(x+h))), 1.0)
+L1 <- function(x, h) vapply(h, function(h) max(abs(f1(x)), abs(f1(x+h))), 1.0)
+L2 <- function(x, h) vapply(h, function(h) max(abs(f2(x)), abs(f2(x+h))), 1.0)
+L3 <- function(x, h) vapply(h, function(h) max(abs(f3(x)), abs(f3(x+h))), 1.0)
+L4 <- function(x, h) vapply(h, function(h) max(abs(f4(x)), abs(f4(x+h))), 1.0)
+bound1.0 <- function(x,h) { .Machine$double.eps*(2*L0(x,h))/h + h*L2(x,h)/2 }
+bound1.1 <- function(x,h) { .Machine$double.eps*(2*L0(x,h)+L1(x,h)*abs(x))/h + h*L2(x,h)/2 }
+bound1.2 <- function(x,h) { .Machine$double.eps*(2*L0(x,h)+2*L1(x,h)*abs(x))/(2*h) + h^2*L3(x,h)/6 }
+bound2.0 <- function(x,h) { .Machine$double.eps*(4*L0(x,h)+2*L1(x,h)*abs(x))/h^2 + h^2*L4(x,h)/12 }
+minim1.0 <- function(x,h=0) { sqrt(.Machine$double.eps*4*L0(x,h)/L2) }
+minim1.1 <- function(x,h=0) { sqrt(.Machine$double.eps*2*(2*L0(x,h)+L1(x,h)*abs(x))/L2(x,h)) }
+minim1.2 <- function(x,h=0) { (.Machine$double.eps*3*(2*L0(x,h)+2*L1(x,h)*abs(x))/2/L3(x,h))^(1/3) }
+minim2.0 <- function(x,h=0) { (.Machine$double.eps*24*(2*L0(x,h)+L1(x,h)*abs(x))/L4(x,h))^(1/4) }
+deriv1.1 <- function(x, h) { (f0(x + h) - f0(x)) / h }
+deriv1.2 <- function(x, h) { (f0(x + h) - f0(x - h)) / (2 * h) }
+deriv2.0 <- function(x, h) { (f0(x + h) + f0(x - h) - 2 * f0(x)) / h^2 }
+maxi <- 1
+x0 <- 1
+mini <- max(1, abs(x0)) * 1e-16
+x00 <- 10 ## Representative |x| value for the bounds
+
+curve(abs(deriv1.2(x0, x) - f1(x0))/abs(f1(x0)), mini,maxi,n=10000, col="grey",log="xy",
+      xlab="h", ylab="Relative errors and error bounds",
+      main="Asymmetric (black/red), and symmetric (grey/blue) 1st order difference errors")
+curve(abs(deriv1.1(x0, x) - f1(x0))/abs(f1(x0)), add=TRUE, n=10000, col="black")
+curve(bound1.1(x0,x)/abs(f1(x0)), add=TRUE, n=1000, col=2, lwd=2)
+# curve(bound1.0(x0,x)/abs(f1(x0)), add=TRUE, n=1000, col=3, lwd=2)
+curve(bound1.2(x0,x)/abs(f1(x0)), add=TRUE, n=1000, col=4, lwd=2)
+
+abline(v=minim1.1(x0), col=2)
+# abline(v=minim1.0(x0), col=3)
+abline(v=minim1.2(x0), col=4)
+#abline(v = .Machine$double.eps^(1/2), col = 2, lty = 2)
+#abline(v = .Machine$double.eps^(1/3), col = 4, lty = 2)
+abline(v = (.Machine$double.eps*(2+x00))^(1/2), col = 2, lty = 2)
+abline(v = (.Machine$double.eps*3*(1+x00))^(1/3), col = 4, lty = 2)
+@
+\end{frame}
+\begin{frame}[fragile]
+%\frametitle{Error bounds for 2nd order differences/derivatives}
+<<echo=FALSE>>=
+curve(abs(deriv2.0(x0, x) - f2(x0))/abs(f2(x0)), mini, maxi, n=10000, log="xy",
+      xlab="h", ylab="Relative errors and error bounds", main="2nd order difference errors")
+curve(bound2.0(x0,x)/abs(f2(x0)), add=TRUE, n=1000, col=2, lwd=2)
+abline(v = minim2.0(x0), col = 2)
+#abline(v = .Machine$double.eps^(1/4), col = 2, lty = 2)
+abline(v = (.Machine$double.eps*24*(2+x00))^(1/4), col = 2, lty = 2)
+@
+\end{frame}
+
+
+
+
+
+\end{document}

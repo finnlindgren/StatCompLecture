@@ -1,0 +1,795 @@
+\documentclass[10pt]{article}
+
+\usepackage{times}
+
+\input{../Lecture04/common.tex}
+\textwidth=185mm
+\setlength{\oddsidemargin}{-10mm}
+\setlength{\evensidemargin}{-10mm}
+\renewcommand{\abstractname}{Summary}
+
+<<echo=FALSE>>=
+solutions <- FALSE
+opts_chunk$set(
+  fig.path = "figure/scores-",
+  fig.align = "center",
+  fig.show = "hold",
+  size = "small",
+  fig.width = 8,
+  fig.height = 5.2,
+  out.width = "\\linewidth",
+  out.height = "0.65\\linewidth"
+)
+set.seed(12345L)
+suppressPackageStartupMessages(library(tidyverse))
+theme_set(theme_bw())
+@
+
+\title{Proper scoring rules}
+\author{Finn Lindgren}
+\begin{document}
+\maketitle
+\tableofcontents
+
+\section{Predictive distributions}
+
+We are interested in estimating a parameter vector $\mv{\theta}\in\R^p$, given observed values $\mathcal{Y}_\text{obs}=\{y_i,i=1,\dots,n\}$, for some likelihood model $L(\mv{\theta};\mathcal{Y}_\text{obs})$, and then use the estimated model to \emph{forecast} or \emph{predict} the values of some \emph{test data} $\mathcal{Y}_\text{test}$.  By producing not only point predictions but also quantifying the prediction uncertainty due to inherent randomness and parameter estimation error uncertainty, e.g.\ in the form of a full predictive distribution or just a prediction variance, we can then compare different models and estimation methods in terms of how good their assessment \emph{scores} are.
+
+Likelihood theory can be used to show that, for large observation samples, the maximum likelihood estimation error is approximately Normal,
+\begin{align}
+\wh{\mv{\theta}}-\mv{\theta}_\text{true} &\sim \pN(\mv{0}, \mv{\Sigma}_\theta)
+\end{align}
+where $\mv{\Sigma}_\theta^{-1}=H(\wh{\mv{\theta}})$, the Hessian of the negative log-likelihood, is a plug-in estimate of the error covariance matrix.  To simplify the notation for tracking the parameter estimation uncertainty, we will treat the unknown parameter vector $\mv{\theta}$ as a random vector which is approximately $\pN(\wh{\mv{\theta}}, \mv{\Sigma}_\theta)$.  This way, once we have found $\wh{\theta}$ and $\mv{\Sigma}_\theta$, we only need the conditional distributions for the observations, given the parameter values.
+
+Note: In classical \emph{frequentist statistics}, this is a slight abuse of notation, since the true $\mv{\theta}$ value, $\mv{\theta}_\text{true}$, is not random in that setting. However, in \emph{Bayesian statistics} this is a more directly valid approach, given an improper uniform density prior for $\mv{\theta}$.
+
+Given the distribution properties of an test observation $y$ given $\mv{\theta}$, e.g.\ as a probability density $f_{y|\mv{\theta}}(\cdot)$, we can write the full predictive/forecast density as
+\begin{align}
+f_y(y) &= \int_\R f_{y|\mv{\theta}}(y) f_{\mv{\theta}}(\mv{\theta}) \md\mv{\theta} ,
+\end{align}
+where $f_{\mv{\theta}}(\mv{\theta})$ is the density of the parameter error uncertainty model,
+$\pN(\wh{\mv{\theta}}, \mv{\Sigma}_\theta)$.
+In general, this integral might be difficult to evaluate, but there are special cases where the answer is known.
+
+We will in general identify the notation $F$ with both the abstract \emph{predictive distribution} and the concrete \emph{predictive cumulative distribution function}, $F(x)=\pP(y\leq x)=\int_{-\infty}^x f_y(y) \md y$.
+
+\subsection{A Gaussian example with partly known parameters}
+Assume that, for some known $p$-vector $\mv{z}$, the observations follow the random model $y=\mv{z}^\top\mv{\theta}+\epsilon$, where $\epsilon\in\pN(0,\sigma_\epsilon^2)$ for some known value $\sigma_\epsilon$.  Then $(y|\mv{\theta})\sim \pN(\mv{z}^\top\mv{\theta}, \sigma_\epsilon^2)$, and according to our approximate uncertainty assumption about $\mv{\theta}$, we get
+\begin{align}
+y&\sim\pN(\mv{z}^\top\wh{\mv{\theta}}, \mv{z}^\top\mv{\Sigma}_\theta\mv{z} + \sigma_\epsilon^2) .
+\end{align}
+
+\subsection{General notation and predictive moments}
+Working with the full predictive distribution is often difficult, so we here focus on Normal/Gaussian predictive distributions, or predictions that only involve the 1st and 2nd order moments of the predictive distribution.
+
+Using the expectation \emph{tower property}, $\pE_A(A)=\pE_{A}[\pE_{A|B}(A)]$, we can write
+\begin{align}
+\mu_F = \pE_F(y) &= \pE_\theta[\pE_{y|\theta}(y)] \\
+\sigma_F^2 = \pV_F(y) &= \pE_\theta[\pV_{y|\theta}(y)] + \pV_\theta[\pE_{y|\theta}(y)]
+\end{align}
+where the second line is the tower property for variances, that can be derived from
+$\pV(A)=\pE\{[A-\pE(A)]^2\}$.  These identities often provide practical solutions to
+finding the forcast/prediction mean and standard deviations, $\mu_F$ and $\sigma_F$.
+
+\subsection{Example: non-constant variance}
+In basic linear regression models with additive Gaussian noise, for simplicity the
+noise variance is often chosen to be the same for all observations. This leads
+to useful theoretical properties, but in practice, this may not be a realistic assumption.
+This section considers an extended model, where the logarithm of the variance is
+also allowed to follow a linear model.
+
+\subsubsection{General model definition}
+
+We define a model where $(y|\mv{\theta})$ are independent and Normal/Gaussian, and the expectation and log-variance are linear in $\mv{\theta}$,
+\begin{align}
+\pE_{y|\theta}(y) &= \mv{z}_E^\top \mv{\theta} \\
+\log[\pV_{y|\theta}(y)] &= \mv{z}_V^\top \mv{\theta}
+\end{align}
+The $\mv{z}_E$ and $\mv{z}_V$ vectors can be stacked as rows of model matrices $\mv{Z}_E$ and $\mv{Z}_V$, so that the expectation of a vector of observations can be written $\mv{Z}_E\mv{\theta}$.
+
+Combining the conditional moments for $(y|\mv{\theta})$ with the uncertainty model for $\mv{\theta}$, we obtain
+\begin{align}
+\pE_F(y) &= \mv{z}_E^\top\wh{\mv{\theta}} \\
+\pV_F(y) &= \pE_\theta\left[\exp\left(\mv{Z}_V\mv{\theta}\right)\right]
++ \pV_\theta\left(\mv{z}_E^\top\mv{\theta}\right)
+\end{align}
+The second term of the variance is
+\begin{align}
+\pV_\theta\left(\mv{z}_E^\top\mv{\theta}\right)
+&=
+\pC_\theta\left(\mv{z}_E^\top\mv{\theta},\mv{z}_E^\top\mv{\theta}\right)
+\\&=
+\mv{z}_E^\top\pC_\theta\left(\mv{\theta},\mv{\theta}\right)\mv{z}_E
+\\&=
+\mv{z}_E^\top \mv{\Sigma}_\theta \mv{z}_E .
+\end{align}
+The first term of the variance is more difficult. We will use the known result (either from the \emph{log-Normal distribution} or the \emph{moment generating function} for the Normal distribution) that if $x\sim\pN(\mu, \sigma^2)$, then $\pE(\mathrm{e}^x)=\mathrm{e}^{\mu+\sigma^2/2}$:
+\begin{align}
+\mv{z}_V^\top \mv{\theta} &\sim \pN(\mv{z}_V^\top\wh{\mv{\theta}}, \mv{z}_V^\top\mv{\Sigma}_\theta\mv{z}_V)\\
+\pE_\theta[\exp(\mv{z}_V^\top \mv{\theta})] &= \exp\left(\mv{z}_V^\top\wh{\mv{\theta}}+\mv{z}_V^\top\mv{\Sigma}_\theta\mv{z}_V/2\right) .
+\end{align}
+Combining the results, we get the predictive variance as
+\begin{align}
+\sigma_V^2 = \pV_F(y) &=
+\exp\left(\mv{z}_V^\top\wh{\mv{\theta}}+\mv{z}_V^\top\mv{\Sigma}_\theta\mv{z}_V/2\right)
++
+\mv{z}_E^\top \mv{\Sigma}_\theta \mv{z}_E .
+\end{align}
+
+\subsubsection{Example model definition}
+We implement a simple version of the general model, by requiring each $\theta_i$ parameter to be used for either the expectation or the log-variance, but not both. We also use a single covariate, in the code called \code{x}, so that every observation is a pair $(x_i,y_i)$, and $\pE_{y|\theta}(y_i)=\theta_1+x_i\theta_2$ and $\log[\pV_{y|\theta}(y_i)]=\theta_3+x_i\theta_4$.
+
+First, define a function that constructs the $\mv{Z}$ matrices:
+<<>>=
+model_Z <- function(x) {
+  Z0 <- model.matrix(~ 1 + x)
+  list(ZE = cbind(Z0, Z0 * 0), ZV = cbind(Z0 * 0, Z0))
+}
+@
+We will write the rest of the code so that we essentially only need to change the definition of \code{model\_Z()} to run a different model of the same general class.
+
+Then, a function that implements the general version of the negative log-likelihood, using a list of the type generated by \code{model\_Z()} to known what the model is.
+<<>>=
+neg_log_lik <- function(theta, Z, y) {
+  -sum(dnorm(y, mean = Z$ZE %*% theta, sd = exp(Z$ZV %*% theta)^0.5, log = TRUE))
+}
+@
+In order to have something to test, we generate a synthetic data sample:
+<<>>=
+n <- 20
+x_obs <- runif(n)
+Z_obs <- model_Z(x_obs)
+theta_true <- c(1, -2, -2, 4)
+y_obs <- rnorm(n = n, mean = Z_obs$ZE %*% theta_true, sd = exp(Z_obs$ZV %*% theta_true)^0.5)
+plot(x_obs, y_obs)
+@
+Treating the simulated data as our observed sample, we estimate the paramter vector $\mv{\theta}$ using \code{optim()}:
+<<>>=
+opt <- optim(rep(0, 4), fn = neg_log_lik, Z = Z_obs, y = y_obs,
+             method = "BFGS", hessian = TRUE)
+theta_hat <- opt$par
+Sigma_theta <- solve(opt$hessian)
+@
+Next, we define a function with behaviour similar to \code{predict()}, that we'll use to compute predictive distributions and prediction intervals:
+<<>>=
+# Value: data.frame with columns (mu, sigma, lwr, upr)
+model_predict <- function(theta, data, Sigma_theta = NULL,
+                          type = c("expectation", "log-variance", "observation"),
+                          alpha = 0.05, df = Inf,
+                          nonlinear.correction = TRUE) {
+  type <- match.arg(type)
+  Z <- model_Z(data) ## Note: Will use model_Z() defined in the global workspace!
+  fit_E <- Z$ZE %*% theta
+  fit_V <- Z$ZV %*% theta
+  if (is.null(Sigma_theta)) {
+    ZE_var <- 0
+    ZV_var <- 0
+  } else {
+    ZE_var <- rowSums(Z$ZE * (Z$ZE %*% Sigma_theta))
+    ZV_var <- rowSums(Z$ZV * (Z$ZV %*% Sigma_theta))
+  }
+  if (type == "expectation") {
+    fit <- fit_E
+    sigma <- ZE_var^0.5
+  } else if (type == "log-variance") {
+    fit <- fit_V
+    sigma <- ZV_var^0.5
+  } else if (type == "observation") { ## observation predictions
+    fit <- fit_E
+    sigma <- (exp(fit_V + ZV_var / 2 * nonlinear.correction) + ZE_var)^0.5
+  }
+  q <- qt(1 - alpha / 2, df = df)
+  lwr <- fit - q * sigma
+  upr <- fit + q * sigma
+  data.frame(mu = fit, sigma, lwr, upr)
+}
+@
+
+Now, let's plot the estimates and predictions!
+<<>>=
+x_plot <- seq(-0.5, 1.5, length=100)
+conf_plot <-
+  cbind(x = x_plot,
+        model_predict(theta_hat, x_plot, Sigma_theta = Sigma_theta, type = "expectation"))
+pred_plot <-
+  cbind(x = x_plot,
+        model_predict(theta_hat, x_plot, Sigma_theta = Sigma_theta, type = "observation"))
+pred_plot_wrong <-
+  cbind(x = x_plot,
+        model_predict(theta_hat, x_plot, Sigma_theta = Sigma_theta, type = "observation",
+                      nonlinear.correction = FALSE))
+pl <- ggplot() +
+  geom_ribbon(data = conf_plot,
+              aes(x, ymin = lwr, ymax = upr),
+              alpha = 0.25, fill = "black") +
+  geom_line(data = conf_plot, aes(x, mu), col = "black") +
+  geom_ribbon(data = pred_plot,
+              aes(x, ymin = lwr, ymax = upr),
+              alpha = 0.25, fill = "blue") +
+  geom_point(aes(x_obs, y_obs))
+pl
+@
+We can add the intervals that ignore the non-linearity correction for the predictive variance to see if it makes a difference:
+<<>>=
+pl +
+  geom_ribbon(data = pred_plot_wrong,
+              aes(x, ymin = lwr, ymax = upr),
+              alpha = 0.25, fill = "red")
+@
+\subsubsection{Towards model assessment with test data}
+We want to assess how good the estimated model is at predicting unseen data; i.e.\ data that wasn't used when estimating the model parameters.  We simulate some new test data from the true model (in real data, this would have been a held-out part of the raw observed data):
+<<>>=
+x_test <- runif(20, -0.5, 1.5)
+Z_test <- model_Z(x_test)
+y_test <- rnorm(n = length(x_test),
+                mean = Z_test$ZE %*% theta_true,
+                sd = exp(Z_test$ZV %*% theta_true)^0.5)
+@
+Let's do a visual inspection:
+<<>>=
+true_plot <-
+  cbind(x = x_plot,
+        model_predict(theta_true, x_plot, type = "observation"))
+pl +
+  geom_ribbon(data = true_plot,
+              aes(x, ymin = lwr, ymax = upr),
+              alpha = 0.25, fill = "red") +
+    geom_line(data = true_plot,
+              aes(x, mu),
+              col = "red")
+@
+We see that the estimated model (black) is close to the true model (red), and that the nonlinear correction term from the exponential expectation gives an important contribution (dotted vs dashed black curves).
+
+The next step is to introduce more formal and quantifiable assessment techniques in the form of \emph{proper scoring rules}.
+
+
+\section{Scoring rules}
+
+We want to assess how \emph{far away} from the truth our forecast/prediction distributions are.  To do this, we might consider a number of quantities that measure the discrepancy in different ways.
+
+\subsection{Common scoring rules}
+
+\subsubsection{Scoring rules for continuous outcomes}
+
+\begin{itemize}
+\item Squared Error (SE):
+\begin{align}
+S_\text{SE}(F, y) &= (y-\wh{y}_F)^2
+\end{align}
+where $\wh{y}_F$ is a point estimate under $F$, e.g.\ the expectation $\mu_F$.
+\item Absolute Error (AE):
+\begin{align}
+S_\text{AE}(F, y) &= |y-\wh{y}_F|
+\end{align}
+where $\wh{y}_F$ is a point estimate under $F$, e.g.\ the predictive median $F^{-1}(1/2)$.
+\item Logarithmic/Ignorance score (LOG/IGN):
+\begin{align}
+S_\text{LOG}(F, y) &= - \log f(y)
+\end{align}
+where $f(\cdot)$ is the predictive density.
+\item Dawid-Sebastiani score (DS):
+\begin{align}
+S_\text{DS}(F, y) &= \frac{(y-\mu_F)^2}{\sigma_F^2} + \log(\sigma_F^2)
+\end{align}
+Note: If $F$ is Normal, then $S_\text{DS}(F, y)=2 S_\text{LOG}(F, y)-\log(2\pi)$
+\item Continuous Ranked Probability Score (CRPS):
+\begin{align}
+S_\text{CRPS}(F, y) &= \int_\R [F(x) - \II(y \leq x)]^2 \md x
+\end{align}
+This can be seen as a generalisation of $AE$ that also cares about other quantiles than the median.
+\end{itemize}
+These scores are defined to be \emph{negatively oriented}, meaning that the \emph{lower the score, the better}.
+
+\subsubsection{Scoring rules for discrete outcomes (section in progress)}
+
+
+\subsection{Defining scores in R}
+Thinking back at the output from the example \code{model\_predict()}, we can define R functions that mimic the $S(F, y)$ notation. For SE and DS we define \code{score\_se()} and \code{score\_ds()}:
+<<>>=
+# Input:
+#   pred : data.frame with (at least) a column "mu"
+#   y : data vector
+score_se <- function(pred, y) {
+  (y - pred$mu)^2
+}
+# Input:
+#   pred : data.frame with (at least) columns "mu" and "sigma"
+#   y : data vector
+score_ds <- function(pred, y) {
+  ((y - pred$mu) / pred$sigma)^2 + 2 * log(pred$sigma)
+}
+@
+
+\subsection{Evaluating scores}
+We can now evaluate the scores for the example. We include the scores for a simplistic model that assumes that all the observations have a common expectation and variance, $(y_i|\mv{\theta})\sim\pN(\beta_0,\sigma_\epsilon^2)$ (for brevity, we ignore some of the parameter uncertainty when constructing the prediction from this model, in \code{pred0}).
+<<>>=
+obs_pred_true <- model_predict(theta_true, x_obs, type = "observation")
+obs_pred_ref <- data.frame(mu = mean(y_obs), sigma = sd(y_obs))
+obs_pred_hat <- model_predict(theta_hat, x_obs, Sigma_theta = Sigma_theta, type = "observation")
+obs_pred_wrong <- model_predict(theta_hat, x_obs, Sigma_theta = Sigma_theta, type = "observation",
+                                nonlinear.correction = FALSE)
+test_pred_true <- model_predict(theta_true, x_test, type = "observation")
+test_pred_ref <- data.frame(mu = mean(y_obs), sigma = sd(y_obs))
+test_pred_hat <- model_predict(theta_hat, x_test, Sigma_theta = Sigma_theta, type = "observation")
+test_pred_wrong <- model_predict(theta_hat, x_test, Sigma_theta = Sigma_theta, type = "observation",
+                                 nonlinear.correction = FALSE)
+## SE for observed and test data
+rbind(
+  obs = c(true = mean(score_se(obs_pred_true, y_obs)),
+          ref = mean(score_se(obs_pred_ref, y_obs)),
+          hat = mean(score_se(obs_pred_hat, y_obs)),
+          wrong = mean(score_se(obs_pred_wrong, y_obs))),
+  test = c(mean(score_se(test_pred_true, y_test)),
+           mean(score_se(test_pred_ref, y_test)),
+           mean(score_se(test_pred_hat, y_test)),
+           mean(score_se(test_pred_wrong, y_test)))
+)
+## DS for observed and test data
+rbind(
+  obs = c(true = mean(score_ds(obs_pred_true, y_obs)),
+          ref = mean(score_ds(obs_pred_ref, y_obs)),
+          hat = mean(score_ds(obs_pred_hat, y_obs)),
+          wrong = mean(score_ds(obs_pred_wrong, y_obs))),
+  test = c(mean(score_ds(test_pred_true, y_test)),
+           mean(score_ds(test_pred_ref, y_test)),
+           mean(score_ds(test_pred_hat, y_test)),
+           mean(score_ds(test_pred_wrong, y_test)))
+)
+@
+We see that the SE appears to be less sensitive to model mis-specification than DS.
+We also see that the scores for the true model are generally \emph{worse} than for the estimated model when applied to the observed data. This is because the estimated models are adapted to the random values that happened to be observed.  For the test data, at least the mis-specified model is clearly worse than the other estimated models as well as the true model.  In our example we see that the estimated model predictions in \code{test\_pred\_hat} score better at DS than the true model even for the test data, but with a different random seed for the pseudo-random numbers, this might very well be reversed.  In general, one wants to use many observations for parameter estimation, but at the same time have enough test observations for reliable model assesment.
+
+The predictions that ignore the non-linearity in the prediction variance formula get a slightly better DS score on the observation data (which is likely due to random chance), but a clearly worse DS score on the test data.
+
+We can also plot the individual scores, to get an overview of the contributions to the average scores:
+<<>>=
+ggplot() +
+  stat_ecdf(aes(x = score_ds(test_pred_true, y_test), col = "true")) +
+  stat_ecdf(aes(x = score_ds(test_pred_ref, y_test), col = "ref")) +
+  stat_ecdf(aes(x = score_ds(test_pred_hat, y_test), col = "hat")) +
+  stat_ecdf(aes(x = score_ds(test_pred_wrong, y_test), col = "wrong")) +
+  xlab("x") + ylab("Empirical CDF")
+@
+In particular for the naive reference model, a few observations are acting as outliers, contributing most of the score penalty. Let's draw the same plot but without the reference model:
+<<>>=
+ggplot() +
+  stat_ecdf(aes(x = score_ds(test_pred_true, y_test), col = "true")) +
+  stat_ecdf(aes(x = score_ds(test_pred_hat, y_test), col = "hat")) +
+  stat_ecdf(aes(x = score_ds(test_pred_wrong, y_test), col = "wrong")) +
+  xlab("x") + ylab("Empirical CDF")
+@
+
+\section{Score expectations and proper scoring rules}
+
+What functions of the predictive distributions are useful scores? We want to reward accurate (unbiased) and precise (small variance) predictions, but not at the expense of understating true uncertainty.
+
+First, we define the expectation of a score as
+\begin{align}
+S(F, G) &= \pE_{y\sim G}[S(F, y)]
+\end{align}
+A negatively oriented score is \emph{proper} if it fulfils
+\begin{align}
+S(F, G) &\geq S(G, G).
+\end{align}
+The practical interpretation of this is that a proper score does not reward cheating; stating a lower (or higher) forecast/prediction uncertainty will not, on average, give a better score than stating the truth.
+
+A proper score that has equality of the expectations \emph{only} when $F$ and $G$ are the same, $F(\cdot)\equiv G(\cdot)$, is said to be \emph{strictly proper}.
+
+Let's revisit some of our previously defined scores and check if they are proper!
+
+\subsection{SE}
+\begin{align}
+S_\text{SE}(F, G) &= \pE_{y\sim G}[S_\text{SE}(F,y)] \\
+&=\pE_{y\sim G}[(y-\mu_F)^2]\\
+&=\pE_{y\sim G}[(y-\mu_G+\mu_G-\mu_F)^2]\\
+&=\pE_{y\sim G}[(y-\mu_G)^2+2(y-\mu_G)(\mu_G-\mu_F)+(\mu_G-\mu_F)^2]\\
+&=\pE_{y\sim G}[(y-\mu_G)^2]+2(\mu_G-\mu_F)\pE_{y\sim G}[y-\mu_G]+(\mu_G-\mu_F)^2\\
+&=\sigma_G^2+(\mu_G-\mu_F)^2
+\end{align}
+This is minimised when $\mu_F=\mu_G$. Therefore $S_\text{SE}(F,G)\geq S_\text{SE}(G,G)=\sigma_G^2$, so the score is proper.  It is not strictly proper, since there are many different distributions with expectation $\mu_G$.
+
+\subsection{DS}
+\begin{align}
+S_\text{DS}(F, G) &= \pE_{y\sim G}[S_\text{DS}(F,y)] \\
+&=\frac{\pE_{y\sim G}[(y-\mu_F)^2]}{\sigma_F^2} + \log(\sigma_F^2)\\
+&=\frac{\sigma_G^2+(\mu_G-\mu_F)^2}{\sigma_F^2}
++ \log(\sigma_F^2)
+\end{align}
+This is minimised when $\mu_F=\mu_G$ and $\sigma_F=\sigma_G$. Therefore $S_\text{DS}(F,G)\geq S_\text{DS}(G,G)=1+\log(\sigma_G^2)$, so the score is proper.
+It is not strictly proper, since there are many different distributions with expectation $\mu_G$ and standard deviation $\sigma_G$.
+
+\subsection{CRPS}
+By definition, we have a relationship between the cdf $G(\cdot)$ and the expectation of an indicator function:
+\begin{align}
+\pE_{y\sim G}[\II(y \leq x)] &= \pP(y \leq x) = G(x).
+\end{align}
+By expanding the square in the integrand for the CRPS definition, and changing order between expectation and integration, we can rewrite the CRPS expectation as follows:
+\begin{align}
+S_\text{CRPS}(F, G) &= \pE_{y\sim G}\left\{ \int_\R [F(x) - \II(y \leq x)]^2 \md x \right\}
+\\&=
+\pE_{y\sim G}\left\{ \int_\R \left[F(x)^2 - 2F(x)\II(y \leq x) + \II(y \leq x)\right] \md x \right\}
+\\&=
+\int_\R \left[F(x)^2 - 2F(x)G(x) + G(x)\right] \md x
+\\&=
+\int_\R \left[F(x)^2 - 2F(x)G(x) + G(x)^2 + G(x) - G(x)^2\right] \md x
+\\&=
+\int_\R \left[F(x) - G(x)\right]^2 \md x +
+\int_\R G(x)\left[1 - G(x)\right] \md x
+\end{align}
+This is minimised when $F(\cdot)\equiv G(\cdot)$, so the score is proper. Furthermore, $S_\text{CRPS}(F,G)=S_\text{CRPS}(G,G)$ \emph{only} when $F(\cdot)\equiv G(\cdot)$, so the score is strictly proper.
+
+\section{Score distributions (section in progress)}
+
+When we take the average of $n$ predictive scores for a model, we should take the random variability into account when comparing with scores for other models.  We'll take a brief look at these score distributions, in particular $\pE_{y\sim F}[S(F,y)]$ and $\pV_{y\sim F}[S(F,y)]$.  When taking average scores, a full analysis should take into account that the prediction are typically \emph{dependent}, leading to larger average score variances, but we'll ignore that here.
+
+We define \emph{average} or \emph{mean} scores under two scenarios:
+\begin{enumerate}
+\item A single forcast/prediction distribution $F$, with many independent observations $y_i$
+\item A collection of forcast/prediction distributions $\{F_i\}$, each predicting a single observation from the collection $\{y_i\}$, i.e.\ we have a collection of prediction/obserrvation pairs $\{(F_i,y_i)\}$.
+\end{enumerate}
+For case~1, the average score is
+\begin{align}
+\ol{S}(F, \{y_i\}) &= \frac{1}{n}\sum_{i=1}^n S(F, y_i) .
+\end{align}
+For case~2, the average score is
+\begin{align}
+\ol{S}(\{(F_i,y_i)\}) &= \frac{1}{n}\sum_{i=1}^n S(F_i, y_i) .
+\end{align}
+
+For example, the commonly used \emph{Mean Squared Error} (MSE) can be defined as $\text{MSE}=\ol{S}_\text{SE}(\{(F_i,y_i)\})$.  This also means that MSE is a proper scoring rule.
+
+\begin{comment}
+Interestingly, the also commonly used \emph{Root Mean Squared Error} (RMSE), which is the square root of the MSE, is also a proper scoring rule.
+
+\begin{align}
+\pE_{y\sim G}\left[\sqrt{S_\text{SE}(G+\mmd F,y)} - \sqrt{S_\text{SE}(G,y)}\right] &=
+\pE_{y\sim G}\left[\sqrt{S_\text{SE}(G,y) + S_\text{SE}(G+\mmd F,y)- S_\text{SE}(G,y)} - \sqrt{S_\text{SE}(G,y)}\right]
+\\&\approx
+\pE_{y\sim G}\left[
+\frac{S_\text{SE}(G+\mmd F,y)- S_\text{SE}(G,y)}{2 \sqrt{S_\text{SE}(G,y)}}
+-
+\frac{\left[S_\text{SE}(G+\mmd F,y)- S_\text{SE}(G,y)\right]^2}{8 \left[S_\text{SE}(G,y)\right]^{3/2}}
+\right]
+\\&=
+\pE_{y\sim G}\left\{
+\frac{S_\text{SE}(G+\mmd F,y)- S_\text{SE}(G,y)}{2 \sqrt{S_\text{SE}(G,y)}}
+\left[
+1
+-
+\frac{S_\text{SE}(G+\mmd F,y)- S_\text{SE}(G,y)}{4 S_\text{SE}(G,y)}
+\right]\right\}
+\\&=
+\pE_{y\sim G}\left\{
+\frac{S_\text{SE}(G+\mmd F,y)- S_\text{SE}(G,y)}{2 \sqrt{S_\text{SE}(G,y)}}
+\left[
+\frac{5}{4}
+-
+\frac{S_\text{SE}(G+\mmd F,y)}{4 S_\text{SE}(G,y)}
+\right]\right\}
+\end{align}
+\end{comment}
+
+%\begin{align}
+%\pP_{y\sim G}[S(F, y) \leq s] &= \pE_{y\sim G}\left\{\II[S(F, y) \leq s]\right\}\\
+%\pVar_{y\sim G}[S(F, y)] &= \pE_{y\sim G}[S(F, y)^2] - S(F, G)^2
+%\end{align}
+
+
+\subsection{Individual score distributions}
+
+We are usually interested in determining whether \emph{differences} between scores
+for different predictors are practically different or not, but we start with the
+easier problem of analysing the distributions of individual scores,
+when the data comes from the predictive distribution.
+
+\subsubsection{SE}
+We already saw that $\pE_{y\sim F}[S_\text{SE}(F, y)] = \sigma_F^2$. The \emph{variance} of the score depends on the type of the predictive distribution.  Since our predictive distributions are usually close to Normal, we consider that assumption to get a useful general approximation:
+\begin{align}
+\pV_{y\sim F}[S_\text{SE}(F, y)] &=
+\pE_{y\sim F}\left\{[(y-\mu_F)^2 - \sigma_F^2]^2\right\} \\
+&=
+\pE_{y\sim F}\left[(y-\mu_F)^4 - 2\sigma_F^2(y-\mu_F)^2 + \sigma_F^4\right]
+\\&=
+3\sigma_F^4 - 2\sigma_F^4 + \sigma_F^4
+\\&=
+2\sigma_F^4 .
+\end{align}
+Furthermore, we know that a rescaled version of the square has a $\chi^2(1)$ distribution: $\{S_\text{SE}(F,y)/\sigma_F^2|y\sim F\}\sim\chi^2(1)$.
+
+For the average score under a common $F$, we get
+$\ol{S}_\text{SE}(F,\{y_i\})\sim\frac{\sigma_F^2}{n}\chi^2(n)$, which has expectation $\sigma_F^2$ and variance $2\sigma_F^4/n$.
+
+For the average score under different $F_i$, the resulting weighted sum of $\chi^2$-distributions  doesn't have a simple form, but we can get the expectation and variance:
+\begin{align}
+\pE_{\{y_i\sim F_i\}}\left[\ol{S}_\text{SE}(\{(F_i,y_i)\})\right]
+&= \frac{1}{n}\sum_{i=1}^n \sigma_{F_i}^2
+\\
+\pV_{\{y_i\sim F_i\}}\left[\ol{S}_\text{SE}(\{(F_i,y_i)\})\right]
+&= \frac{2}{n^2}\sum_{i=1}^n \sigma_{F_i}^4
+\end{align}
+
+\subsubsection{DS}
+Since the DS score is closely related to the SE score, the analysis follow the same principles. If $F$ is Normal, each normalised fraction $(y-\mu_F)/\sigma_F$ in the DS definition is $\pN(0,1)$, so the dependence on $i$ in the score only enters through the offset term $\log(\sigma_F^2)$:
+\begin{align}
+\{S_\text{DS}(F,y)|y\sim F\} &\sim\chi^2(1)+\log(\sigma_F^2)
+\\
+\{\ol{S}_\text{DS}(F,\{y_i\})|\{y_i\sim F\}\} &\sim\frac{1}{n}\chi^2(n)+\log(\sigma_F^2)
+\\
+\{\ol{S}_\text{DS}(\{(F_i,y_i)\})|\{y_i\sim F_i\}\} &\sim\frac{1}{n}\chi^2(n)+\frac{1}{n}\sum_{i=1}^n \log(\sigma_{F_i}^2)
+\\
+\pE_{\{y_i\sim F_i\}}\left[\ol{S}_\text{DS}(\{(F_i,y_i)\})\right]
+&= 1 + \frac{1}{n}\sum_{i=1}^n \log(\sigma_{F_i}^2)
+\\
+\pV_{\{y_i\sim F_i\}}\left[\ol{S}_\text{DS}(\{(F_i,y_i)\})\right]
+&= \frac{1}{n}
+\end{align}
+
+
+\subsubsection{CRPS}
+The distribution of the CRPS is much harder to analyse. The expectation was derived earlier, and we only state the end result for the variance, as a double integral:
+\begin{align}
+\pV_{y\sim F}\left[S_\text{CRPS}(F, y)\right]
+&=
+\iint_{\R\times\R}
+[1 - 2 F(u)][1 - 2 F(v)]F[\min(u,v)]\{1-F[\max(u,v)]\}
+\md u \md v .
+\end{align}
+
+
+\begin{comment}
+\begin{align}
+\pE_{y\sim G}[S(F, y)^2]
+&= \int_\R \left\{ \int_\R [F(x) - \II(y \leq x)]^2 \md x \right\}^2 \md G(y)
+\\&=
+\int_\R \iint_{\R\times\R} [F(u) - \II(y \leq u)]^2[F(v) - \II(y \leq v)]^2 \md u \md v \md G(y)
+\\&=
+\int_\R \iint_{\R\times\R} [F(u)^2 - 2F(u)\II(y \leq u) + \II(y \leq u)]
+[F(v)^2 - 2F(v)\II(y \leq v) + \II(y \leq v)] \md u \md v \md G(y)
+\\&=
+\int_\R \iint_{\R\times\R}
+\left\{F(u)^2 + [1-2F(u)]\II(y \leq u)\right\}
+\left\{F(v)^2 + [1-2F(v)]\II(y \leq v)\right\}
+\md u \md v \md G(y)
+\\&=
+\int_\R \iint_{\R\times\R}
+\left\{
+F(u)^2F(v)^2 + [1-2F(u)]F(v)^2\II(y \leq u)
++ F(u)^2[1-2F(v)]\II(y \leq v)\}
++ [1-2F(u)][1-2F(v)]\II[y \leq \min(u,v)]
+\right\}
+\md u \md v \md G(y)
+\\&=
+\iint_{\R\times\R}
+\left\{
+F(u)^2F(v)^2 + [1-2F(u)]F(v)^2G(u)
++ F(u)^2[1-2F(v)]G(v)
++ [1-2F(u)][1-2F(v)]G[\min(u,v)]
+\right\}
+\md u \md v
+\end{align}
+
+We're concerned with the distribution of the score under the assumption that the forecast is correct, i.e.\ $y\sim F$:
+\begin{align}
+\pE_{y\sim F}&[S(F, y)^2]
+= \int_\R \left\{ \int_\R [F(x) - \II(y \leq x)]^2 \md x \right\}^2 \md F(y)
+\\&=
+\int_\R \iint_{\R\times\R} [F(u) - \II(y \leq u)]^2[F(v) - \II(y \leq v)]^2 \md u \md v \md F(y)
+\\&=
+\int_\R \iint_{\R\times\R}
+\left\{F(u)^2 + [1-2F(u)]\II(y \leq u)\right\}
+\left\{F(v)^2 + [1-2F(v)]\II(y \leq v)\right\}
+\md u \md v \md F(y)
+\\&=
+\iint_{\R\times\R}
+\left\{
+F(u)^2F(v)^2 + [1-2F(u)]F(v)^2F(u)
++ F(u)^2[1-2F(v)]F(v)
++ [1-2F(u)][1-2F(v)]F[\min(u,v)]
+\right\}
+\md u \md v
+\\&=
+\iint_{\R\times\R}
+\left\{
+F(u)^2F(v) + F(u)F(v)^2 + (1-2-2) F(u)^2F(v)^2
++ [1-2F(u)][1-2F(v)]F(u \wedge v)
+\right\}
+\md u \md v
+\end{align}
+We also have
+\begin{align}
+S(F,F)^2 &= \iint_{\R\times\R} F(u)F(v)[1-F(u)][1-F(v)] \md u \md v
+\\&=
+\iint_{\R\times\R} \left\{ F(u)F(v) - F(u)^2F(v) - F(u)F(v)^2 + F(u)^2F(v)^2\right\} \md u \md v
+\end{align}
+so that
+\begin{align}
+\pVar_{y\sim F}[S(F,y)] &=
+\pE_{y\sim F}[S(F,y)^2]-S(F,F)^2
+\\&=
+\iint_{\R\times\R}
+\left\{
+2F(u)^2F(v) + 2F(u)F(v)^2 - 4 F(u)^2F(v)^2 - F(u)F(v)
++ [1-2F(u)][1-2F(v)]F(u \wedge v)
+\right\}
+\md u \md v
+\\&=
+\iint_{\R\times\R}
+\left\{
+[2F(u)+2F(v) - 4F(u)F(v) - 1][F(u)F(v)-F_\wedge]
+\right\}
+\md u \md v
+\\&=
+\iint_{\R\times\R}
+\left\{
+[1 + 4F(u)F(v) - 2 F(u) - 2 F(v)][F_\wedge-F(u)F(v)]
+\right\}
+\md u \md v
+\\&=
+\iint_{\R\times\R}
+[1 - 2 F(u)][1 - 2 F(v)][F_\wedge-F(u)F(v)]
+\md u \md v
+\\&=
+\iint_{\R\times\R}
+(1 - 2 F_\wedge)(1 - 2 F_\vee)F_\wedge(1-F_\vee)
+\md u \md v
+\end{align}
+\end{comment}
+
+
+
+\subsection{Distribution of score differences}
+
+The scores for different predictors applied to the same data are dependent,
+even if the dependence is only due to them being applied to the exact same
+data point. Instead of trying to adapt the individual score distributions,
+we therefore directly examine the distributions of pairwise score differences,
+in the situation where one of the two predictors matches the data distribution.
+
+\subsubsection{SE}
+
+Expectation and variance of $S_\text{SE}(F,y)$ under $y\sim G$:
+\begin{align}
+\pE_{y\sim G}\left[S_\text{SE}(F,y)\right] &= \sigma_G^2 + (\mu_G-\mu_F)^2 \\
+\pVar_{y\sim G}\left[S_\text{SE}(F,y)\right] &=
+\pE_{y\sim G}\left\{\left[(y-\mu_F)^2 - \sigma_G^2 - (\mu_G-\mu_F)^2\right]^2\right\}
+\\&=
+\pE_{y\sim G}\left\{
+\left[(y-\mu_G+\mu_G-\mu_F)^2 - \sigma_G^2 - (\mu_G-\mu_F)^2\right]^2
+\right\}
+\\&=
+\pE_{y\sim G}\left\{
+\left[(y-\mu_G)^2+2(y-\mu_G)(\mu_G-\mu_F) - \sigma_G^2\right]^2
+\right\}
+\\&=
+\pE_{y\sim G}\left\{
+(y-\mu_G)^4+4(y-\mu_G)^3(\mu_G-\mu_F) + \sigma_G^4 + 4(y-\mu_G)^2(\mu_G-\mu_F)^2
+\right.
+\\&\left.\phantom{= \pE_{y\sim G}\left\{\right.}
+- 2\sigma_G^2(y-\mu_G)^2 - 4\sigma_G^2(y-\mu_G)(\mu_G-\mu_F)
+\right\}
+\\&= 3\sigma_G^4 + \sigma_G^4 + 4\sigma_G^2(\mu_G-\mu_F)^2 - 2\sigma_G^4
+\\&= 2\sigma_G^4\left[1 + 2\left(\frac{\mu_G-\mu_F}{\sigma_G}\right)^2\right]
+\end{align}
+
+Expectation and variance of $S_\text{SE}(F,y)-S_\text{SE}(G,y)$ under $y\sim G$:
+\begin{align}
+S_\text{SE}(F,y)-S_\text{SE}(G,y) &= (y-\mu_F)^2 - (y-\mu_G)^2
+\\&= 2(y-\mu_G)(\mu_G-\mu_F) + (\mu_G-\mu_F)^2
+\\&= 2\left(y-\frac{\mu_G+\mu_F}{2}\right)(\mu_G-\mu_F) \\
+\pE_{y\sim G}\left[S_\text{SE}(F,y)-S_\text{SE}(G,y)\right] &= (\mu_G-\mu_F)^2 \\
+\pVar_{y\sim G}\left[S_\text{SE}(F,y)-S_\text{SE}(G,y)\right] &=
+4\sigma_G^2 (\mu_G-\mu_F)^2
+\end{align}
+
+
+\subsubsection{DS}
+
+Expectation and variance of $S_\text{DS}(F,y)=\frac{(y-\mu_F)^2}{\sigma_F^2}+\log(\sigma_F^2)$ under $y\sim G$:
+\begin{align}
+S_\text{DS}(F,y)&=
+\frac{(y-\mu_F)^2}{\sigma_F^2}+\log(\sigma_F^2)
+\\&=
+\frac{(y-\mu_G)^2 + 2(y-\mu_G)(\mu_G-\mu_F) + (\mu_G-\mu_F)^2}{\sigma_F^2}+\log(\sigma_F^2)
+\\
+\pE_{y\sim G}\left[S_\text{DS}(F,y)\right] &= \frac{\sigma_G^2 + (\mu_G-\mu_F)^2}{\sigma_F^2} +
+\log(\sigma_F^2) \\
+\pVar_{y\sim G}\left[S_\text{DS}(F,y)\right] &=
+\pE_{y\sim G}\left[\left\{
+S_\text{DS}(F,y)-\pE_{y\sim G}\left[S_\text{DS}(F,y)\right]
+\right\}^2\right]
+\\&=
+2\frac{\sigma_G^4}{\sigma_F^4}\left[1 + 2\left(\frac{\mu_G-\mu_F}{\sigma_G}\right)^2\right]
+\end{align}
+
+Expectation and variance of $S_\text{DS}(F,y)-S_\text{DS}(G,y)$ under $y\sim G$:
+\begin{align}
+S_\text{DS}(F,y)-S_\text{DS}(G,y) &=
+\frac{(y-\mu_F)^2}{\sigma_F^2} - \frac{(y-\mu_G)^2}{\sigma_G^2} +
+\log\left(\frac{\sigma_F^2}{\sigma_G^2}\right)
+\\&=
+\frac{(y-\mu_G)^2 + 2(y-\mu_G)(\mu_G-\mu_F)+(\mu_G-\mu_F)^2}{\sigma_F^2} - \frac{(y-\mu_G)^2}{\sigma_G^2} +
+\log\left(\frac{\sigma_F^2}{\sigma_G^2}\right)
+\\
+\pE_{y\sim G}\left[S_\text{DS}(F,y)-S_\text{DS}(G,y)\right] &=
+\frac{\sigma_G^2 + (\mu_G-\mu_F)^2}{\sigma_F^2}
+- 1 + \log\left(\frac{\sigma_F^2}{\sigma_G^2}\right)
+\\
+\pVar_{y\sim G}\left[S_\text{DS}(F,y) - S_\text{DS}(G,y)\right] &=
+\pE_{y\sim G}\left\{
+\left[
+\frac{(y-\mu_G)^2 + 2(y-\mu_G)(\mu_G-\mu_F)}{\sigma_F^2} - \frac{(y-\mu_G)^2}{\sigma_G^2}
+-
+\frac{\sigma_G^2}{\sigma_F^2}
++ 1
+\right]^2
+\right\}
+\\&=
+\pE_{y\sim G}\left[
+(y-\mu_G)^4 \left(\frac{1}{\sigma_F^2}-\frac{1}{\sigma_G^2}\right)^2
+\right]
+\\&\phantom{= }
++
+\pE_{y\sim G}\left\{
+(y-\mu_G)^2
+\left[
+4\frac{(\mu_G-\mu_F)^2}{\sigma_F^4}
++
+2\left(\frac{1}{\sigma_F^2}-\frac{1}{\sigma_G^2}\right)
+\left(1-\frac{\sigma_G^2}{\sigma_F^2}\right)
+\right]
+\right\}
+\\&\phantom{= }
++
+\left(1-\frac{\sigma_G^2}{\sigma_F^2}\right)^2
+\\&=
+2\left(1-\frac{\sigma_G^2}{\sigma_F^2}\right)^2
++4\frac{\sigma_G^2}{\sigma_F^2}\frac{(\mu_G-\mu_F)^2}{\sigma_F^2}
+\\&=
+2\frac{\sigma_G^4}{\sigma_F^4}
+\left[
+\left(1-\frac{\sigma_F^2}{\sigma_G^2}\right)^2
++2\left(\frac{\mu_G-\mu_F}{\sigma_G}\right)^2
+\right]
+\end{align}
+
+\end{document}
+
+\subsection{AE}
+
+Assume $F$ and $G$ are Gaussian. The integral was derived by the online Integral Calculator, \url{https://www.integral-calculator.com/}
+\begin{align}
+\pE_{y\sim G}(S_\text{AE}(F,y)) &=
+\pE_{y\sim G}(|y-\mu_F|)
+=
+\int_{-\infty}^\infty |y-\mu_F| \frac{1}{\sigma_G\sqrt{2\pi}}\exp\left(
+-\frac{(y-\mu_G)^2}{2\sigma_G^2}\right)
+\\&=
+\int_{-\infty}^\infty |x| \frac{1}{\sigma_G\sqrt{2\pi}}\exp\left(
+-\frac{(x-\mu_G+\mu_F)^2}{2\sigma_G^2}\right)
+\\&=
+\frac{2^{3/2}\sigma_G\Gamma\left(1,\frac{(\mu_G-\mu_F)^2}{2\sigma_G^2}\right)
++
+|\mu_G-\mu_F|\left[2\sqrt{\pi}-2\Gamma\left(\frac{1}{2},\frac{(\mu_G-\mu_F)^2}{2\sigma_G^2}\right)
+\right]}{2\sqrt{\pi}}
+\\&=
+|\mu_G-\mu_F|
+\left[1-\frac{1}{\sqrt{\pi}}\Gamma\left(\frac{1}{2},\frac{(\mu_G-\mu_F)^2}{2\sigma_G^2}\right)
+\right]
++
+\sigma_G\sqrt{\frac{2}{\pi}} \Gamma\left(1,\frac{(\mu_G-\mu_F)^2}{2\sigma_G^2}\right),
+\end{align}
+where $\Gamma(a,x)=\int_x^\infty t^{a-1}\exp(-t)\, \mathrm{d}t$, with R code
+<<eval=FALSE>>=
+gamma(a) * pgamma(x, a, lower = FALSE)
+@
+
+\begin{align}
+\pE_{y\sim G}(|y-\mu_F|^2) &=
+\sigma_G^2+(\mu_G-\mu_F)^2
+\\
+\pVar_{y\sim G}(|y-\mu_F|) &=
+\pE_{y\sim G}(|y-\mu_F|^2) -
+\pE_{y\sim G}(|y-\mu_F|)^2
+\end{align}
+
+\end{document}

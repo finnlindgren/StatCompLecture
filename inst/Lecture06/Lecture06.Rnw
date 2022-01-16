@@ -1,0 +1,741 @@
+\documentclass[compress,handout,t,10pt,fleqn,aspectratio=169]{beamer}
+
+\input{common.tex}
+\input{commonbeamer.tex}
+\togglefalse{byhand}
+\toggletrue{byhand}
+<<echo=FALSE>>=
+solutions <- TRUE
+opts_chunk$set(fig.path = 'figure/L06-',
+               fig.align = 'center',
+               fig.show = 'hold',
+               size = 'footnotesize',
+               fig.width = 8,
+               fig.height = 8 * 0.55,
+               out.width = "\\linewidth",
+               out.height = "0.55\\linewidth")
+knit_hooks$set(inline = function(x) {
+  if (is.numeric(x)) return(knitr:::format_sci(x, 'latex'))
+  highr::hi_latex(x)
+})
+set.seed(12345L)
+@
+% Handle solutions inclusion toggle.
+\togglefalse{solutions}
+<<echo=FALSE, results="asis">>=
+if (solutions) {
+  cat("\\toggletrue{solutions}")
+}
+@
+
+\begin{document}
+
+
+\begin{frame}[fragile]
+  \frametitle{Prediction and model assessment \hfill\small(MATH10093)}
+  \end{frame}
+
+
+
+\begin{frame}
+\frametitle{Some notation}
+\begin{itemize}
+\item
+For a random variable $Y$, we write $p_Y(y)$, $y\in D$ for the probability mass
+function for a discrete random variable or the probability density function for a
+continuous random variable, taking values in some set or region $D$.
+\item
+In this part of the course, we will often have more than one distribution relating
+to the same outcome $y$. To keep track of which probability measure is involved in
+each expression, we will use letters $F$ and $G$, and sometimes $F'$ to denote
+different distributions.
+\item The full notation for an expectation of $h(Y)$ when $Y$ has distribution
+$F$ is denoted
+$\pE_{Y\sim F}[h(Y)]$, and the probability mass/density function (pmf/pdf) is $p_F(y)$.
+\item When it is clear which variable is involved, we may abbreviate to $\pE_F[h(Y)]$,
+and especially in Bayesian contexts, we won't always distinguish between a random
+variable $Y$ and outcome $y$, but instead use lower case $y$, as in
+$\pE_{y\sim F}[h(y)]$.
+\item For convenience, the letter used to identify a distribution will also be used
+to denote the cumulative distribution function (cdf), so that
+$F(y)=\pP_{Y\sim F}(Y \leq y)$.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\begin{block}{Expectation and variance}
+\begin{align*}
+\pE_F[h(Y)] &= \sum_{y\in D} h(y)\, p_F(y),\quad\text{discrete outcomes $y\in D$,}
+\\
+\pE_F[h(Y)] &= \int_D h(y) p_F(y) \,\mathrm{d}y,\quad\text{continuous outcomes $y\in D$}
+\\
+\pVar_F(Y) &= \pE_F\left\{[Y-\pE_F(Y)]^2\right\} = \pE_F(Y^2) - \pE_F(Y)^2
+\end{align*}
+(Often, we use the tower property trick for variances instead of the plain definition)
+\end{block}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+  \frametitle{Prediction and proper scoring rules}
+\begin{itemize}
+\item When using numerical estimation methods subject to both numerical precision errors, random data collection variation, and methodological approximations, it's useful to be able to assess the end result in a way that's not tied to a particular method or model.
+\item One approach: \emph{split} the data into \emph{observations for estimation} and \emph{test} data: $\mathcal{Y}_\text{obs}$ and $\mathcal{Y}_\text{test}$.
+\item Estimate the model parameters using the \emph{estimation} data $\mathcal{Y}_\text{obs}$.
+\item Assess how good the estimated model is at predicting the values of the \emph{test} data $\mathcal{Y}_\text{test}$.
+\item The most common assessment is to compare \emph{point predictions} with their corresponding actual value in the test data:\\
+Squared error $=(y_\text{test}-\wh{y})^2$.
+\item The family of \emph{proper scores} or \emph{proper scoring rules} helps
+to keep comparisons fair; they ensure that predictions that don't match true variability
+do not get a lower score expectation than the true distribution.
+\item To assess methodology, it's often useful to use \emph{simulated} data, so that\\
+we know the true model. If the method is able to come close to the\\ true values,
+we are more confident that it will also work on data where\\ we don't know the true model.
+\end{itemize}
+%\vfill
+%More extensive written notes on prediction and proper scoring rules are available on Learn.
+\end{frame}
+
+\begin{comment}
+\begin{frame}[fragile]
+\frametitle{Simple estimation/test assessment}\vspace*{-1mm}
+Consider the model $y_i\sim \pN(\theta_1, \theta_2^2)$, independent $y_i$,
+$i=1,\dots,n$.\vspace*{-1mm}
+<<include=FALSE>>=
+## Simulate data:
+N <- 100
+Y <- rnorm(N, mean = 10, sd = 2)
+
+## Split the data, 75 for estimation, 25 for testing:
+n <- c(75, 25)
+obs <- sample(rep(c(TRUE, FALSE), c(75, 25)), size = N, replace = FALSE)  # Split randomly
+y_obs <- Y[obs] # Extract the observations to be used for estimation
+y_test <- Y[!obs] # Extract the observations to be used for testing
+
+## Estimate the paramters:
+theta1_hat <- mean(y_obs)
+theta2_hat <- sd(y_obs)
+
+## Test:
+mean( (y_test - theta1_hat)^2 ) ## Average squared error
+mean( (y_test - 0)^2 ) ## Average squared error for a bad model estimate
+@
+\end{frame}
+\end{comment}
+
+\begin{frame}[fragile]
+\frametitle{Forecasting and prediction}
+\begin{itemize}
+\item
+The term \emph{forecasting} typically means doing a \emph{prediction} of future events or values, e.g.\ for weather forecasts
+\item
+Based on some statistical model and observed data, we typically construct a \emph{point estimate} that is our best guess of the future value. Ideally, we also compute some measure of \emph{uncertainty} about how large we expect the error to be, i.e.\ the difference between the point estimate and the true future value.
+\item In statistical terminology, this process is called \emph{prediction}, and we seek useful \emph{predictive distributions} that encode our knowledge from a statistical model and previously observed data into a representative distribution of possible future data values.
+\item Note: In Bayesian statistics, \emph{prediction} (distributions and prediction intervals) can apply to \emph{any} quantity that has not yet been observed. In frequentist statistics, fixed but unknown parameter values are instead associated with \emph{confidence intervals}, and \emph{prediction intervals} are reserved for observable random quantities.
+\item We will gloss over the differences between frequentist and Bayesian approaches,\\ and focus on prediction of observable data values.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Bayesian prediction distributions}
+Consider a (Bayesian) hierarchical model structure
+\begin{align*}
+\mv{\theta} &\sim p(\mv{\theta}) \\
+\mv{y}|\mv{\theta} &\sim p(\mv{y}\mid \mv{\theta})
+\end{align*}
+with parameters $\mv{\theta}=\{\theta_1,\dots,\theta_p\}$ and
+observations/outcomes $\mv{y}=\{y_1,\dots,y_n\}$.
+
+\begin{block}{Posterior prediction}
+Given observations $\mv{y}$, we want to \emph{predict} new outcomes $y'$.
+
+The posterior uncertainty about $\mv{\theta}$ is captured by the posterior distribution of $\mv{\theta}|\mv{y}$, with density $p(\mv{\theta}|\mv{y})\propto p(\mv{\theta})p(\mv{y}|\mv{\theta})$.
+
+The predictive uncertainty for a single outcome $y'$ can be obtained from the predictive density
+\begin{align*}
+p_{y'|\mv{y}}(y') &= \int_D p_{y'|\mv{\theta}}(y') p_{\mv{\theta}|\mv{y}}(\mv{\theta}) \md\mv{\theta}
+\end{align*}\vspace*{-3mm}
+\end{block}
+We will identify the predictive distribution for $y'$ with the CDF $F$,
+$F(x)=\pP_{y'\sim F}(y'\leq x)=\int_{-\infty}^x p_{y'|y}(u) \md u$.
+
+When we're just considering a given prediction $F$, we'll drop the $\cdot'$ from $y'$.
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Approximate frequentist prediction distributions}
+\begin{itemize}
+\item From asymptotic likelihood theory we know that, when $\mv{\theta}$ is the maximum likelihood estimator of $\mv{\theta}$, then approximately, $\wh{\mv{\theta}}-\mv{\theta}_\text{true}\sim\pN(\mv{0}, \wh{\mv{\Sigma}}_\theta)$, where $\wh{\mv{\Sigma}}_\theta^{-1}$ can be estimated by $H(\wh{\mv{\theta}})$ (log-likelihood Hessian from Lecture~2, the \emph{observed Fisher information})
+\item With a slight abuse of frequentist notation, we will represent the estimation uncertainty by a distribution of \emph{potential} parameter values: $\mv{\theta}\sim\pN(\wh{\mv{\theta}}, \wh{\mv{\Sigma}}_\theta)$, where $\wh{\theta}$ is now treated as a fixed value, determined by the oberved $\mv{y}$ values. We write the density for the potential parameter values as $p_{\mv{\theta}|\mv{y}}(\mv{\theta})$, just as in the Bayesian case.
+\item We can then use the same notation as in the Bayesian case to define an approximate
+predictive distribution $p_F(y')=p_{y'|\mv{y}}(y')$
+\item A common further approximation is to ignore the uncertainty about $\mv{\theta}$, and instead
+define $p_F(y')=p_{y'|\wh{\mv{\theta}}}(y')$, the \emph{plug-in} estimator
+of the observation distribution.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Example: Non-constant regression model variance}
+\begin{itemize}
+\item Let $y\sim\pN\left[\mv{z}_E^\top\mv{\theta}, \exp(\mv{z}_V^\top\mv{\theta})\right]$, i.e.\ the expectation has a linear model, and the variance has a log-linear model, where the same parameters could potentially influence both the expectation and the variance.
+\item With the $\mv{z}_\cdot$ vectors for each observation stored as rows in two matrices $\mv{Z}_E$ and $\mv{Z}_V$, the vector of observation expectations can be written as $\pE_{y|\theta}(\mv{y})=\mv{Z}_E\mv{\theta}$, and similarly for the log-variances.
+\item From numerical optimisation of the log-likelihood and asymptotic likelihood theory
+we obtain $\wh{\mv{\theta}}$ and $\wh{\mv{\Sigma}}_\theta$ for the uncertainty distribution $\mv{\theta}|\mv{y}\sim\pN(\wh{\mv{\theta}},\wh{\mv{\Sigma}}_\theta)$
+\item We want the predictive expectation and variance for given $\mv{z}_E$ and $\mv{z}_V$ for a new observation $y'$.
+\item Numerical examples will use the model $\mv{z}_E=\mat{1 & x & 0 & 0}$, $\mv{z}_V=\mat{0 & 0 & 1 & x}$, where $x$ is a covariate with different value for each observation.
+\end{itemize}
+%Example: Take the special case $\mv{z}_{E_i}^\top=\mat{1 & x_i & 0 & 0}$ and $\mv{z}_{V_i}^\top=\mat{0 & 0 & 1 & x_i}$, i.e.\ the parameters for expectation and log-variance are not directly coupled, and we have an intercept and a single covariate for both of the submodels.
+<<include=FALSE>>=
+model_Z <- function(x) {
+  Z0 <- model.matrix(~ 1 + x)
+  list(ZE = cbind(Z0, Z0 * 0), ZV = cbind(Z0 * 0, Z0))
+}
+@
+%This takes a vector of covariate values $x_i$, one for each observation, as input, and return a list, with $\mv{Z}_E$ and $\mv{Z}_V$ as named elements.
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Example: Predictive distribution}
+\begin{itemize}
+%\item Using numerical optimisation on the negative loglikelihood,
+<<include=FALSE>>=
+neg_log_lik <- function(theta, Z, y) {
+  -sum(dnorm(y, mean = Z$ZE %*% theta, sd = exp(Z$ZV %*% theta)^0.5, log = TRUE))
+}
+@
+%provides $\wh{\mv{\theta}}$ and $\mv{\Sigma}_\theta$.
+\item Recall the \emph{tower property} ($\pE_A(A)=\pE_B[\pE_{A|B}(A)]$), which gives
+\begin{align*}
+\mu_F=\pE_F(y') &= \mv{z}_E^\top\wh{\mv{\theta}},
+&
+\sigma^2_F=\pV_F(y) &= \pE_{\mv{\theta}|\mv{y}}\left[\exp\left(\mv{z}_V\mv{\theta}\right)\right]
++ \pV_{\mv{\theta}|\mv{y}}\left(\mv{z}_E^\top\mv{\theta}\right) .
+\end{align*}
+The second term of the variance is
+\begin{align*}
+\pV_{\mv{\theta}|\mv{y}}\left(\mv{z}_E^\top\mv{\theta}\right)
+&=
+\pC_{\mv{\theta}|\mv{y}}\left(\mv{z}_E^\top\mv{\theta},\mv{z}_E^\top\mv{\theta}\right)
+=
+\mv{z}_E^\top\pC_{\mv{\theta}|\mv{y}}\left(\mv{\theta},\mv{\theta}\right)\mv{z}_E
+=
+\mv{z}_E^\top \wh{\mv{\Sigma}}_\theta \mv{z}_E .
+\end{align*}
+For the first term, we use a result that says that if $x\sim\pN(\mu,\sigma^2)$, then
+$\pE(\mathrm{e}^x)=\mathrm{e}^{\mu+\sigma^2/2}$:
+\begin{align*}
+\pE_{\mv{\theta}|\mv{y}}[\exp(\mv{z}_V^\top \mv{\theta})] &= \exp\left(\mv{z}_V^\top\wh{\mv{\theta}}+\mv{z}_V^\top\wh{\mv{\Sigma}}_\theta\mv{z}_V/2\right) .
+\end{align*}
+Combining the results, we get the predictive variance as
+\begin{align*}
+\sigma_F^2=\pV_F(y) &=
+\exp\left(\mv{z}_V^\top\wh{\mv{\theta}}+\mv{z}_V^\top\wh{\mv{\Sigma}}_\theta\mv{z}_V/2\right)
++
+\mv{z}_E^\top \wh{\mv{\Sigma}}_\theta \mv{z}_E .
+\end{align*}
+\end{itemize}
+\end{frame}
+
+
+
+<<echo=FALSE>>=
+set.seed(12345L)
+n <- 20
+x_obs <- runif(n)
+Z_obs <- model_Z(x_obs)
+theta_true <- c(1, -2, -2, 4)
+y_obs <- rnorm(n = n, mean = Z_obs$ZE %*% theta_true, sd = exp(Z_obs$ZV %*% theta_true)^0.5)
+@
+
+<<echo=FALSE>>=
+opt <- optim(rep(0, 4), fn = neg_log_lik, Z = Z_obs, y = y_obs,
+             method = "BFGS", hessian = TRUE)
+theta_hat <- opt$par
+Sigma_theta <- solve(opt$hessian)
+@
+
+%\begin{frame}[fragile]
+%\vspace*{-4mm}
+<<echo=FALSE,include=FALSE>>=
+# Value: data.frame with columns (mu, sigma, lwr, upr)
+model_predict <- function(theta, data, Sigma_theta = NULL,
+                          type = c("expectation", "log-variance", "observation"),
+                          alpha = 0.05, df = Inf,
+                          nonlinear.correction = TRUE) {
+  type <- match.arg(type)
+  Z <- model_Z(data) ## Note: Will use model_Z() defined in the global workspace!
+  fit_E <- Z$ZE %*% theta
+  fit_V <- Z$ZV %*% theta
+  if (is.null(Sigma_theta)) {
+    ZE_var <- 0
+    ZV_var <- 0
+  } else {
+    ZE_var <- rowSums(Z$ZE * (Z$ZE %*% Sigma_theta))
+    ZV_var <- rowSums(Z$ZV * (Z$ZV %*% Sigma_theta))
+  }
+  if (type == "expectation") {
+    fit <- fit_E
+    sigma <- ZE_var^0.5
+  } else if (type == "log-variance") {
+    fit <- fit_V
+    sigma <- ZV_var^0.5
+  } else if (type == "observation") { ## observation predictions
+    fit <- fit_E
+    sigma <- (exp(fit_V + ZV_var / 2 * nonlinear.correction) + ZE_var)^0.5
+  }
+  q <- qt(1 - alpha / 2, df = df)
+  lwr <- fit - q * sigma
+  upr <- fit + q * sigma
+  data.frame(mu = fit, sigma, lwr, upr)
+}
+@
+<<eval=FALSE,include=FALSE>>=
+# Value: data.frame with columns (mu, sigma, lwr, upr)
+model_predict <- function(theta, data, Sigma_theta = NULL,
+                          type = c("expectation", "log-variance", "observation"),
+                          alpha = 0.05, df = Inf,
+                          nonlinear.correction = TRUE) {
+  type <- match.arg(type)
+  Z <- model_Z(data) ## Note: Will use model_Z() defined in the global workspace!
+  fit_E <- Z$ZE %*% theta
+  fit_V <- Z$ZV %*% theta
+  if (is.null(Sigma_theta)) {
+    ZE_var <- ZV_var <- 0
+  } else {
+    ZE_var <- rowSums(Z$ZE * (Z$ZE %*% Sigma_theta))
+    ZV_var <- rowSums(Z$ZV * (Z$ZV %*% Sigma_theta))
+  }
+  if (type == "expectation") { ## confidence interval
+    ...
+  } else if (type == "observation") { ## observation predictions
+    fit <- fit_E
+    sigma <- (exp(fit_V + ZV_var / 2 * nonlinear.correction) + ZE_var)^0.5
+  }
+  q <- qt(1 - alpha / 2, df = df) ## If the user wants a t-quantile instead of Normal.
+  lwr <- fit - q * sigma
+  upr <- fit + q * sigma
+  data.frame(mu = fit, sigma, lwr, upr)
+}
+@
+%\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Estimation data, point estimates, confidence and prediction intervals}\vspace*{0mm}
+<<echo=FALSE>>=
+x_plot <- seq(-0.5, 1.5, length=100)
+conf_plot <- model_predict(theta_hat, x_plot, Sigma_theta = Sigma_theta, type = "expectation")
+pred_plot <- model_predict(theta_hat, x_plot, Sigma_theta = Sigma_theta, type = "observation")
+pred_plot2 <- model_predict(theta_hat, x_plot, Sigma_theta = Sigma_theta, type = "observation",
+                            nonlinear.correction = FALSE)
+suppressPackageStartupMessages(library(tidyverse))
+theme_set(theme_bw())
+ggplot(cbind(x = x_plot, conf_plot)) +
+  geom_point(data = data.frame(x = x_obs, y = y_obs), aes(x,y)) +
+  geom_line(aes(x, mu)) +
+  geom_ribbon(aes(x, ymin = lwr, ymax = upr), alpha = 0.25) +
+  geom_ribbon(data = cbind(x = x_plot, pred_plot),
+              aes(x, ymin = lwr, ymax = upr), alpha = 0.25)
+@
+\end{frame}
+
+<<echo=FALSE>>=
+x_test <- runif(20, -0.5, 1.5)
+Z_test <- model_Z(x_test)
+y_test <- rnorm(n = length(x_test),
+                mean = Z_test$ZE %*% theta_true,
+                sd = exp(Z_test$ZV %*% theta_true)^0.5)
+@
+\begin{frame}[fragile]
+\frametitle{Add the true model\&predictions, and some test data}\vspace*{0mm}
+<<echo=FALSE>>=
+true_plot <- model_predict(theta_true, x_plot, type = "observation")
+ggplot(cbind(x = x_plot, conf_plot)) +
+  geom_point(data = data.frame(x = x_obs, y = y_obs), aes(x,y)) +
+  geom_point(data = data.frame(x = x_test, y = y_test), aes(x,y), col = "red") +
+  geom_line(aes(x, mu)) +
+  geom_ribbon(aes(x, ymin = lwr, ymax = upr), alpha = 0.25) +
+  geom_ribbon(data = cbind(x = x_plot, pred_plot),
+              aes(x, ymin = lwr, ymax = upr), alpha = 0.25) +
+  geom_line(data = cbind(x = x_plot, true_plot),
+            aes(x, mu), col = "blue") +
+  geom_ribbon(data = cbind(x = x_plot, true_plot),
+              aes(x, ymin = lwr, ymax = upr), fill = "blue", alpha = 0.15)
+@
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Scores}\vspace{-2mm}
+\begin{itemize}
+\item We want to quantify how well our predictions represent the test data.
+\item We define \emph{scores} $S(F,y)$ that in some way measure how well the prediction $F$ matched the actual value, $y$.
+\item
+The scores defined here are \emph{negatively oriented}, meaning that the \emph{lower the score, the better}.
+\end{itemize}
+\begin{block}{Squared errors and log-likelihood scores}
+\begin{itemize}
+\item Squared Error (SE): $S_\text{SE}(F, y) = (y-\wh{y}_F)^2$,\\
+where $\wh{y}_F$ is a point estimate under $F$, e.g.\ the expectation $\mu_F$.
+\item Logarithmic/Ignorance score (LOG/IGN): $S_\text{LOG}(F, y) = - \log p_F(y)$,\\
+where $p_F(\cdot)$ is the predictive probability density function.
+\item Dawid-Sebastiani (DS): $S_\text{DS}(F, y) = \frac{(y-\mu_F)^2}{\sigma_F^2} + \log(\sigma_F^2)$. \end{itemize}
+\end{block}
+\end{frame}
+
+\begin{comment}
+\begin{frame}[fragile]
+\frametitle{Example}
+We evaluate the SE and DS scores for the true model, a naive simplistic reference model, and the estimated full model.
+<<include=FALSE>>=
+## For the estimation data:
+obs_pred_true <- model_predict(theta_true, x_obs, type = "observation")
+obs_pred_ref <- data.frame(mu = mean(y_obs), sigma = sd(y_obs))
+obs_pred_hat <- model_predict(theta_hat, x_obs, Sigma_theta = Sigma_theta, type = "observation")
+
+## For the test data:
+pred_true <- model_predict(theta_true, x_test, type = "observation")
+pred_ref <- data.frame(mu = mean(y_obs), sigma = sd(y_obs))
+pred_hat <- model_predict(theta_hat, x_test, Sigma_theta = Sigma_theta, type = "observation")
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Example}
+<<include=FALSE>>=
+# Input:
+#   pred : data.frame with (at least) a column "mu"
+#   y : data vector
+score_se <- function(pred, y) {
+  (y - pred$mu)^2
+}
+
+## SE for observed and test data
+rbind(
+  obs = c(true = mean(score_se(obs_pred_true, y_obs)),
+          ref = mean(score_se(obs_pred_ref, y_obs)),
+          hat = mean(score_se(obs_pred_hat, y_obs))),
+  test = c(true = mean(score_se(pred_true, y_test)),
+           ref = mean(score_se(pred_ref, y_test)),
+           hat = mean(score_se(pred_hat, y_test)))
+)
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Example}
+<<>>=
+# Input:
+#   pred : data.frame with (at least) columns "mu" and "sigma"
+#   y : data vector
+score_ds <- function(pred, y) {
+  ((y - pred$mu) / pred$sigma)^2 + 2 * log(pred$sigma)
+}
+
+## DS for observed and test data
+rbind(
+  obs = c(true = mean(score_ds(obs_pred_true, y_obs)),
+          ref = mean(score_ds(obs_pred_ref, y_obs)),
+          hat = mean(score_ds(obs_pred_hat, y_obs))),
+  test = c(true = mean(score_ds(pred_true, y_test)),
+           ref = mean(score_ds(pred_ref, y_test)),
+           hat = mean(score_ds(pred_hat, y_test)))
+)
+@
+\end{frame}
+\end{comment}
+
+
+\begin{frame}
+\frametitle{Proper scoring rules}
+\begin{itemize}
+\item What functions of the predictive distributions are useful scores?
+\item We want to reward accurate (unbiased) and precise (small variance) predictions, but not at the expense of understating true uncertainty.
+\item
+First, we define the expectation of a score under a true distribution $G$ as
+\begin{align*}
+S(F, G) &= \pE_{y\sim G}[S(F, y)]
+\end{align*}\vspace*{-6mm}
+\end{itemize}
+\begin{block}{Proper scores/scoring rules}
+A negatively oriented score is \emph{proper} if it fulfils
+\begin{align*}
+S(F, G) &\geq S(G, G).
+\end{align*}
+A proper score that has equality of the expectations \emph{only} when $F$ and $G$ are the same, $F(\cdot)\equiv G(\cdot)$, is said to be \emph{strictly proper}.
+\end{block}
+The practical interpretation of this is that a proper score does not reward cheating;\\
+stating a lower (or higher) forecast/prediction uncertainty will not, on average,\\
+give a better score than matching the true variability.
+\end{frame}
+
+\begin{frame}
+\frametitle{Proper scores}\vspace*{-6mm}
+\begin{align*}
+S_\text{SE}(F, G) &= \pE_{y\sim G}[S_\text{SE}(F,y)]
+=\pE_{y\sim G}[(y-\mu_F)^2]
+=\pE_{y\sim G}[(y-\mu_G+\mu_G-\mu_F)^2]\\
+&=\pE_{y\sim G}[(y-\mu_G)^2+2(y-\mu_G)(\mu_G-\mu_F)+(\mu_G-\mu_F)^2]\\
+&=\pE_{y\sim G}[(y-\mu_G)^2]+2(\mu_G-\mu_F)\pE_{y\sim G}[y-\mu_G]+(\mu_G-\mu_F)^2\\
+&=\sigma_G^2+(\mu_G-\mu_F)^2
+\end{align*}
+This is minimised when $\mu_F=\mu_G$. Therefore $S_\text{SE}(F,G)\geq S_\text{SE}(G,G)=\sigma_G^2$, so the score is proper.  Is it strictly proper?
+
+\begin{align*}
+S_\text{DS}(F, G) &= \pE_{y\sim G}[S_\text{DS}(F,y)]
+=\frac{\pE_{y\sim G}[(y-\mu_F)^2]}{\sigma_F^2} + \log(\sigma_F^2)\\
+&=\frac{\sigma_G^2+(\mu_G-\mu_F)^2}{\sigma_F^2}
++ \log(\sigma_F^2)
+\end{align*}
+This is minimised when $\mu_F=\mu_G$ and $\sigma_F=\sigma_G$. Therefore $S_\text{DS}(F,G)\geq S_\text{DS}(G,G)=1+\log(\sigma_G^2)$, so the score is proper.  Is it strictly proper?
+\end{frame}
+
+
+
+\begin{frame}
+\frametitle{Absolute error and CRPS}
+\begin{block}{Absolute error and Continuous Ranked Probability Score}
+\begin{itemize}
+\item Absolute Error (AE): $S_\text{AE}(F,y)=|y-\wh{y}_F|$,
+where $\wh{y}_F$ is a point estimate under $F$, e.g.\ the \emph{median} $F^{-1}(1/2)$.
+\item CRPS: $S_\text{CRPS}(F,y) = \int_{-\infty}^\infty \left[\mathbb{I}(y \leq x) - F(x)\right]^2\,\mathrm{d}x$
+\end{itemize}
+\end{block}
+\end{frame}
+
+
+
+\begin{frame}
+\frametitle{How good are prediction interval procedures?}
+\begin{block}{Tradeoffs for prediction intervals}
+Desired properties for methods generating prediction intervals (PIs) for a quantity $Y$:
+\begin{enumerate}
+\item Appropriate \emph{coverage} under the true distribution, $G$: $\pP_{Y\sim G}(Y \in \text{PI}_F) \geq 1-\alpha$
+\item Narrow intervals
+\end{enumerate}
+Note: For confidence intervals similar properties are desired, but then the $F$ are random.
+\end{block}
+\begin{itemize}
+\item A wide prediction $F$ helps with 1 but makes 2 difficult
+\item A narrow prediction $F$ helps with 2 but makes 1 difficult
+\end{itemize}
+\vfill
+\begin{block}{A proper score for interval predictions}
+The \emph{Interval Score} For a PI $(L_F,U_F)$ is defined by
+$$
+S_\text{INT}(F,y) = U_F-L_F + \frac{2}{\alpha}(L_F-y)\II(y < L_F) + \frac{2}{\alpha}(y-U_F)\II(y > U_F)
+$$
+It is a proper scoring rule, consistent for equal-tail error probability intervals:\\
+$S(F,G)$ is minimised for the narrowest $PI$ that has expected coverage $1-\alpha$.
+\end{block}
+\end{frame}
+
+
+
+\begin{frame}
+\frametitle{Assessing event prediction probabilities}
+Often, specific events are of particular interest. We can use an estimated
+general model to compute predictive probabilities for several events,
+or construct a model that is only aimed at predicting a specific event.
+The indicator variable $Z=\mathbb{\text{The event occurred}}$ has a Binomial
+prediction distribution, $\pBin(1, p_F)$. We can therefore use the Log-score,
+$S_\text{LOG}(F,z)=-z\log(p_F)-(1-z)\log(1-p_F)$, to assess predictive performance.
+\begin{block}{Brier score}
+The \emph{Brier Score} is a popular event prediction assessment score that for single events can be defined as the Squared Error score with respect to the Binomial expectation:
+\begin{align*}
+S_\text{Brier}(F,z) = (z - p_F)^2
+\end{align*}\vspace*{-5mm}
+\end{block}
+For multi-option outcomes, where an observation is classified into one of several
+categories (instead of just "no/yes"), the score can be generalised to
+\begin{align*}
+S_\text{Brier}(F,z) = \sum_{k=1}^K \left[\mathbb{I}(z=k) - \pP_F(Z=k)\right]^2
+\end{align*}
+The Brier score is proper, but only strictly proper w.r.t.\ a specific
+set of event categories.
+\end{frame}
+
+
+
+\begin{frame}
+\frametitle{Average scores}\vspace*{-3mm}
+\begin{block}{Average score}
+Given a collection of prediction/truth pairs, $\{(F_i,y_i),i=1,\dots,n\}$, define the \emph{average} or \emph{mean} score:
+$$
+\ol{S}(\{(F_i,y_i),i=1,\dots,n\}) = \frac{1}{n}\sum_{i=1}^n S(F_i, y_i)
+$$
+\end{block}
+\begin{itemize}
+\item When comparing prediction quality, we often look at the difference in average scores across the test data set.
+\item For modern, complex models with explicit spatial and temporal model components, and for constructing formal tests, the \emph{pairwise} differences are more useful:\\
+For two prediction methods, $F$ and $F'$,
+$$
+S^\Delta_i(F_i, F_i', y_i) = S(F_i,y_i) - S(F_i',y_i)
+$$
+We can have $\ol{S}^\Delta\approx 0$ at the same time as all $|S_i^\Delta| \gg 0$, if the two\\
+models/methods are both good, but e.g.\ at different spatial locations.
+\item Later: How can we assess whether the score differences are indistinguishable?
+\end{itemize}
+\end{frame}
+
+
+\end{document}
+
+
+
+
+
+
+
+\begin{frame}[fragile]
+  \frametitle{Further prediction and model assessment \hfill\small(MATH10093: L04)}
+  \begin{itemize}
+  \item Coursework A: Tue 4/2 (w4) -- Tue 25/2 (w6)
+  \item Lab w4 and w5 (5/2 and 12/2): Work on coursework A
+  \end{itemize}
+\end{frame}
+
+
+<<echo=FALSE>>=
+model_Z <- function(x) {
+  Z0 <- model.matrix(~ 1 + x)
+  list(ZE = cbind(Z0, Z0 * 0), ZV = cbind(Z0 * 0, Z0))
+}
+neg_log_lik <- function(theta, Z, y) {
+  -sum(dnorm(y, mean = Z$ZE %*% theta, sd = exp(Z$ZV %*% theta)^0.5, log = TRUE))
+}
+@
+
+
+<<echo=FALSE>>=
+set.seed(12345L)
+n <- 20
+x_obs <- runif(n)
+Z_obs <- model_Z(x_obs)
+theta_true <- c(1, -2, -2, 4)
+y_obs <- rnorm(n = n, mean = Z_obs$ZE %*% theta_true, sd = exp(Z_obs$ZV %*% theta_true)^0.5)
+@
+
+<<echo=FALSE>>=
+opt <- optim(rep(0, 4), fn = neg_log_lik, Z = Z_obs, y = y_obs,
+             method = "BFGS", hessian = TRUE)
+theta_hat <- opt$par
+Sigma_theta <- solve(opt$hessian)
+@
+
+<<echo=FALSE>>=
+# Value: data.frame with columns (mu, sigma, lwr, upr)
+model_predict <- function(theta, data, Sigma_theta = NULL,
+                          type = c("expectation", "log-variance", "observation"),
+                          alpha = 0.05, df = Inf,
+                          nonlinear.correction = TRUE) {
+  type <- match.arg(type)
+  Z <- model_Z(data) ## Note: Will use model_Z() defined in the global workspace!
+  fit_E <- Z$ZE %*% theta
+  fit_V <- Z$ZV %*% theta
+  if (is.null(Sigma_theta)) {
+    ZE_var <- 0
+    ZV_var <- 0
+  } else {
+    ZE_var <- rowSums(Z$ZE * (Z$ZE %*% Sigma_theta))
+    ZV_var <- rowSums(Z$ZV * (Z$ZV %*% Sigma_theta))
+  }
+  if (type == "expectation") {
+    fit <- fit_E
+    sigma <- ZE_var^0.5
+  } else if (type == "log-variance") {
+    fit <- fit_V
+    sigma <- ZV_var^0.5
+  } else if (type == "observation") { ## observation predictions
+    fit <- fit_E
+    sigma <- (exp(fit_V + ZV_var / 2 * nonlinear.correction) + ZE_var)^0.5
+  }
+  q <- qt(1 - alpha / 2, df = df)
+  lwr <- fit - q * sigma
+  upr <- fit + q * sigma
+  data.frame(mu = fit, sigma, lwr, upr)
+}
+@
+
+<<echo=FALSE>>=
+x_plot <- seq(-0.5, 1.5, length=100)
+conf_plot <- model_predict(theta_hat, x_plot, Sigma_theta = Sigma_theta, type = "expectation")
+pred_plot <- model_predict(theta_hat, x_plot, Sigma_theta = Sigma_theta, type = "observation")
+pred_plot2 <- model_predict(theta_hat, x_plot, Sigma_theta = Sigma_theta, type = "observation",
+                            nonlinear.correction = FALSE)
+suppressPackageStartupMessages(library(tidyverse))
+theme_set(theme_bw())
+@
+
+<<echo=FALSE>>=
+x_test <- runif(20, -0.5, 1.5)
+Z_test <- model_Z(x_test)
+y_test <- rnorm(n = length(x_test),
+                mean = Z_test$ZE %*% theta_true,
+                sd = exp(Z_test$ZV %*% theta_true)^0.5)
+@
+
+
+
+\begin{frame}[fragile]
+\frametitle{Example}
+<<echo=FALSE>>=
+## For the estimation data:
+obs_pred_true <- model_predict(theta_true, x_obs, type = "observation")
+obs_pred_ref <- data.frame(mu = mean(y_obs), sigma = sd(y_obs))
+obs_pred_hat <- model_predict(theta_hat, x_obs, Sigma_theta = Sigma_theta, type = "observation")
+
+## For the test data:
+pred_true <- model_predict(theta_true, x_test, type = "observation")
+pred_ref <- data.frame(mu = mean(y_obs), sigma = sd(y_obs))
+pred_hat <- model_predict(theta_hat, x_test, Sigma_theta = Sigma_theta, type = "observation")
+
+score_se <- function(pred, y) {
+  (y - pred$mu)^2
+}
+@
+Store scores in a data.frame or matrix:
+<<>>=
+output <- rbind(
+  obs = c(true = mean(score_se(obs_pred_true, y_obs)),
+          ref = mean(score_se(obs_pred_ref, y_obs)),
+          hat = mean(score_se(obs_pred_hat, y_obs))),
+  test = c(true = mean(score_se(pred_true, y_test)),
+           ref = mean(score_se(pred_ref, y_test)),
+           hat = mean(score_se(pred_hat, y_test)))
+)
+@
+Raw printing:
+<<>>=
+output
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Example}
+Pretty-print with the \code{xtable} package; requires \code{results='asis'} as code chunk option:
+<<results="asis">>=
+library(xtable)
+print(xtable(output), comment = FALSE)
+@
+See more table printing options in \code{?xtable} and \code{?print.xtable}
+
+Another option is \code{knitr::kable}, again with \code{results='asis'} as code chunk option:
+<<results="asis">>=
+knitr::kable(output)
+@
+See more options in \code{?knitr::kable} and the \code{kableExtra} package: \url{https://cran.r-project.org/package=kableExtra}
+\end{frame}
+
+
+
+
+
+
+
+
+
+\end{document}

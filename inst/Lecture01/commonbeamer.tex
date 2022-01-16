@@ -1,0 +1,22 @@
+\usefonttheme[onlymath]{serif}
+
+\setbeamertemplate{blocks}[rounded][shadow=true]
+\setbeamercolor{block title}{fg=black,bg=lightblue}
+\setbeamercolor{block title example}{parent=block title}
+\setbeamercolor{block body}{parent=normal text,%
+ use=block title,bg=white}
+\setbeamercolor{block body example}{parent=block body}
+\beamertemplatetransparentcovered
+
+%\setbeamercolor{math text}{fg=black!15!blue}
+\setbeamercolor{math text}{fg=otherblue}
+\newcommand\beamermathcolor[1]{\color{#1}\setbeamercolor{math text}{fg=#1}}
+
+
+
+\newcommand{\inclpage}[1]{%
+  \frame{\vspace*{-2.5mm}%
+  \centerline{\includegraphics[width=1.18\linewidth]{#1}}}}
+\newcommand{\inclpagerot}[1]{%
+  \frame{\vspace*{-7mm}%
+  \centerline{\rotatebox{180}{\includegraphics[width=1.18\linewidth]{#1}}}}}

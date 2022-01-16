@@ -1,0 +1,480 @@
+\documentclass[compress,handout,t,10pt,fleqn,aspectratio=169]{beamer}
+
+\input{common.tex}
+\input{commonbeamer.tex}
+\togglefalse{byhand}
+<<echo=FALSE>>=
+solutions <- TRUE
+opts_chunk$set(fig.path = 'figure/L01-',
+               fig.align = 'center',
+               fig.show = 'hold',
+               size = 'footnotesize',
+               fig.width = 8,
+               fig.height = 5.2,
+               out.width = "\\linewidth",
+               out.height = "0.65\\linewidth")
+knit_hooks$set(inline = function(x) {
+  if (is.numeric(x)) return(knitr:::format_sci(x, 'latex'))
+  highr::hi_latex(x)
+})
+@
+% Handle solutions inclusion toggle.
+\togglefalse{solutions}
+<<echo=FALSE, results="asis">>=
+if (solutions) {
+  cat("\\toggletrue{solutions}")
+}
+@
+
+\begin{document}
+
+
+
+\begin{frame}
+  \frametitle{Statistical Computing\hfill\small(MATH10093: L01)}\vspace*{-2mm}
+  \begin{itemize}
+  \item Course organiser and Lecturer:\\
+  Finn Lindgren, \texttt{finn.lindgren@ed.ac.uk}
+  \item Additional computer lab tutors:\\
+  Simon Taylor, Jinlu Liu, Dimitrios Doudesis
+  \item Computer labs: w1--4 and w6--9, Wed 09:00--11:00 or 15:30--17:30\\
+  Zoom
+  \item Office Hours/Live Demonstrations: every week, Thursdays 13:00-14:00\\
+  Zoom
+  \item Coursework (see details on Learn):\\
+  w2,4,7,9 (5\% each)\\
+  w4--6 (40\%), w9--"12" (40\%)
+  \end{itemize}
+\end{frame}
+
+
+
+
+\begin{frame}
+\frametitle{Topics and approximate content plan}
+\begin{itemize}
+\item The R language, plotting
+\item Likelihood optimisation techniques and structured programming
+\item Numerical integration and Bayesian statistics
+\item Simulation and simulation studies
+\item Model and method assessment: scoring rules
+\item Cross validation methods
+\item Bootstrap methods
+\item Robust numerical methods for statistical computations
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}
+\frametitle{RStudio recommendations}
+\begin{itemize}
+\item Use R version 3.6.1 or later. Available on lab computers. Free to download for laptops:\\
+\url{https://www.r-project.org/}\\
+\url{https://rstudio.com/}
+\item Use \emph{projects} (\emph{Organisation})
+\item Write code in a script file so that you rerun it easily (\emph{Reproducibility})
+\item Use keyboard shortcuts to run code from the file:\\
+(don't copy paste; high risk of \emph{cut} and or ):\\
+Ctrl-Enter runs the current line and steps to the next
+\item Recommended (not enforced) style guide for R code:\\
+\url{http://style.tidyverse.org/}
+\item \code{install.packages("styler")} gives a nice "Addins" tool to RStudio that can reformat code to fit the style guide. RStudio also has builtin code checking that can be activated to give hints in the margin about potential problems.
+\item Use \code{?name} or \emph{Help} pane search to see the documentation/help/examples for a function!
+\end{itemize}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Functions are recipes}
+Solve for $\mv{x}$ in $(\mv{A} + \mv{A}^\top) \mv{x} = \mv{b}$:
+\begin{block}{Script style code}
+<<eval=FALSE>>=
+A <- matrix(rnorm(10 * 10), 10, 10)
+b <- rnorm(10)
+x <- solve(A + t(A), b)
+@
+\end{block}
+\begin{block}{Structured, reusable code}
+<<eval=FALSE>>=
+solve_my_problem <- function(A, b) {
+  solve(A + t(A), b)
+}
+
+big_matrix <- matrix(rnorm(10 * 10), 10, 10)
+some_vector <- rnorm(10)
+
+x <- solve_my_problem(big_matrix, some_vector)
+x2 <- solve_my_problem(5, 2)
+x3 <- solve_my_problem(matrix(runif(400), 20, 20), rnorm(20))
+x4 <- solve_my_problem(A = big_matrix, b = some_vector)
+@
+\end{block}
+\end{frame}
+
+
+
+
+\begin{frame}[fragile]
+\frametitle{Basic R maths programming}
+The basic flow of an piece of R code is
+\begin{enumerate}
+\item Assign values to some \emph{variables}
+\item Perform transformation and/or calculations using the variables using \emph{operators} and \emph{functions}
+\item Present the results (as text and/or figures)
+\end{enumerate}
+Basic \emph{functions} follow similar principles to regular maths functions
+<<>>=
+radius <- 4
+angle <- pi / 3
+radius * c(cos(angle), sin(angle))
+@
+\begin{itemize}
+\item Predefined operators:
+\begin{itemize}
+\item Assignment operator: \code{<-}
+\item Arithmetic operators: \code{/}, \code{*}
+\end{itemize}
+\item Predefined constant: \code{pi}
+\item Predefined functions: \code{cos()}, \code{sin()}, \code{c()}\hfill
+(\code{c} for \emph{combine})
+\end{itemize}
+The output above is prefixed by the comment character \code{\#}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Basic R object data types}
+\begin{itemize}
+\item \emph{Numeric} and \emph{logical} types: \code{integer}, \code{double}, \code{logical}
+\item \code{character}
+\item \code{factor}
+\end{itemize}
+The function \code{str()} displays the internal structure of an object
+<<strip.white=TRUE,size="tiny">>=
+str(4)
+str(2.4)
+str(TRUE)
+str("Text")
+str(factor(c("Red", "Blue")))
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Object collection data types}
+\begin{itemize}
+\item \code{vector}: A sequence of objects of the same type
+\item \code{matrix}: A 2D grid of objects of the same type
+\item \code{list}: An ordered collection of objects of the same or different types
+\item \code{data.frame}: A collection of vectors of equal length
+\end{itemize}
+<<>>=
+str(1:5) ## Sequence operator :
+str(c(TRUE, FALSE, TRUE))
+matrix(1:6, nrow = 2, ncol = 3)
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Indexing and vectorised operations}
+\begin{itemize}
+\item Vector indexing: \code{x[i]}
+\item Logical vector indexing: \code{x[something > 0]}
+\item If \code{i} is itself a vector, a sub-vector is extracted
+\item Basic maths functions operate on each element of a vector
+\end{itemize}
+<<>>=
+a <- cos((0:5) * 2 * pi / 6)
+a
+a[4]
+a[4:5]
+a[a < 0]
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Indexing and vectorised operations}
+\begin{itemize}
+\item Matrix indexing: \code{x[i, j]}
+\item If \code{i} or \code{j} are integer or logical vectors, a sub-matrix is extracted
+\item Basic maths functions operate on each element of a matrix
+\end{itemize}
+<<>>=
+b <- exp(matrix(a, 3, 2))
+b
+b[2, ] # Extract an entire row as vector
+b[2:3, 2, drop = FALSE] # Extract two rows of a column and keep as a matrix
+@
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Data type: \texttt{list}}
+A \texttt{list} stores a collection of (usually \emph{named}) variables with possibly different types and size.
+<<>>=
+x <- list(temperature = c(4, 7, 42, 10, 23, 25),
+          shoe_size = c(11, 7, 5, 10.5),
+          room = c("B", "3210", "5205"))
+x
+str(x)
+@
+\end{frame}
+\begin{frame}[fragile]
+\frametitle{Data type: \texttt{list}}
+\begin{itemize}
+\item Sub-list indexing: \code{x[indices]}
+\item List element indexing: \code{x[[index]]}, \code{x[[name]]}, \code{x\$name}
+\end{itemize}
+<<>>=
+x[2:3]
+x[["room"]]
+x$temperature
+names(x) ## Extract the names
+@
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Data type: \texttt{data.frame}}
+A \texttt{data.frame} stores a collection of \emph{named} variables as columns, with each row corresponding to a joint observation.
+<<>>=
+x <- data.frame(Temperature = c(4, 7, 10, 23, 25),
+                Failure = c(FALSE, TRUE, TRUE, FALSE, FALSE))
+x
+colnames(x) ## Extract the column names
+str(x)
+@
+\end{frame}
+\begin{frame}[fragile]
+A \texttt{data.frame} can be indexed both as a matrix \emph{and} as a list:
+<<>>=
+x[2:3, ]
+x[, "Failure"] ## Note: x[, "Failure", drop=FALSE] returns a data.frame
+x$Failure
+x[["Failure"]]
+name <- "Failure"
+x[[name]]
+@
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{"Base graphics" plotting functions}
+\begin{itemize}
+\item The simplest plotting mechanism is called \emph{base graphics}.
+\item Plot a vector or vectors: \code{plot(x)}, \code{plot(x, y)}
+\item Plot a curve from an expression: \code{curve(cos(x), left, right)}
+\item Common optional parameters: \code{plot(x, ...)}
+\begin{itemize}
+\item Override default axis limits:\\ \code{xlim=c(left, right)}, \code{ylim=c(lower, upper)}
+\item Override default axis labels:\\ \code{xlab="Temperature (C)"}, \code{ylab="Snow depth (mm)"}
+\end{itemize}
+\item Useful helper functions:\\
+Data range: \code{range(x)} $=[\min(x_i),\max(x_i)]$\\
+Sequences: \code{seq(\!\emph{start}, \!\emph{end}, length.out=\!\emph{length})}
+\item Add points or lines to an existing figure:\\
+\code{points(x, y, ...)},
+\code{lines(x, y, ...)}\\
+\code{abline(\emph{intercept}, \emph{slope}, ...)},\\
+\code{abline(h = \emph{vertical location of horizontal line}, ...)},\\
+\code{abline(v = \emph{horizontal location of vertical line}, ...)}
+\item Common optional parameters:\\
+\code{col=\emph{colour name}}, \code{lty=\emph{line type nr}}, \code{pch=\emph{point symbol nr}}
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{"Grammar of graphics" plotting functions}
+\begin{itemize}
+\item Another plotting system is provided by the \code{ggplot2} package.
+\item Plot a vector or vectors: \code{ggplot(data.frame(x, y)) + geom\_point(aes(x, y))}
+\item Plot a curve from an expression: \code{ggplot(data.frame(x = seq(\!\emph{left}, \!\emph{right}, length.out = 1000))) + geom\_line(aes(x, cos(x)))}
+\item Common optional parameters: \code{plot(x, ...)}
+\begin{itemize}
+\item Override default axis labels:\\ \code{ggplot(...) + ... + xlab("Temperature (C)") + ylab("Snow depth (mm)")}
+\item Override default plot title:\\ \code{ggplot(...) + ... + ggtitle("Snow depth on Ben Nevis")}
+\end{itemize}
+\item Useful helper function:\\
+Sequences: \code{seq(\!\emph{start}, \!\emph{end}, length.out=\!\emph{length})}
+\item Add points or lines to a figure:\\
+\code{+ geom\_point(mapping = aes(x, y))}\\
+\code{+ geom\_line(...)}\\
+\code{+ geom\_abline(\emph{intercept}, \emph{slope}, ...)}
+\end{itemize}
+\code{ggplot} separates \emph{data} from \emph{geoms} (\emph{plotting geometries} with \emph{aesthetic mappings})
+\end{frame}
+
+
+
+
+
+\begin{frame}[fragile]
+\frametitle{Data type conversion}
+\begin{itemize}
+\item Functions of the form \code{as.\!\emph{type}()} attempt to convert an object into the given type.
+\item Common conversions: \code{as.vector()}, \code{as.data.frame()}, \code{as.matrix()}, \code{as.list()}, \code{unlist()}
+\end{itemize}
+<<>>=
+x <- matrix(1:6, 2, 3)
+as.vector(x)
+as.data.frame(x)
+a <- as.data.frame(x)
+colnames(a) <- c("A", "B", "C")
+a
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Creating empty objects and removing elements}
+\begin{itemize}
+\item In most situations, \code{NULL} acts as \emph{nothing}
+\item Pre-allocation of sized or empty objects can be useful
+\end{itemize}
+<<>>=
+x <- list(1, 2, 3:4, 5)
+unlist(x[-3]) ## Extract all elements except number 3 and turn into a vector
+x[3] <- NULL ## Remove list element 3. Only works for lists
+unlist(x)
+numeric(4)
+logical(2)
+@
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Formulas for linear models}
+\begin{itemize}
+\item R has many code packages implementing various types of generalised linear models
+\item The most basic is \code{lm()}, which estimates models of the form
+\begin{align*}
+y_i &= \sum_{k=0}^K z_{ik} \beta_k + e_i \quad\text{(elementwise definition)}\\
+\mv{y} &= \mv{Z} \mv{\beta} + \mv{e} \quad\text{(matrix form)}
+\end{align*}
+\item In R, the \code{formula} object type is used to define linear model structures
+<<>>=
+form1 <- y ~ covariate ## y_i = beta_0 + covariate_i beta_k
+form2 <- SnowDepth ~ Temperature ## SnowDepth_i = beta_0 + Temperature_i beta_T
+str(form <- c(form1, form2))
+@
+Unless \code{$\sim$ -1} is used, the \emph{intercept} is included automatically.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{More advanced vectorisation}
+\begin{itemize}
+\item \code{lm()} is not a basic mathematical function that can be applied to a list of formulas
+\item We can vectorise model estimation by applying arbitrary functions to each element of a list, with \code{lapply()}
+\item For simpler cases, \code{vapply()} does the same for each element of a vector object.
+\end{itemize}\vspace*{-3mm}
+<<echo=FALSE>>=
+SnowDepth <- c(2, 1, 0)
+Temperature <- c(5, 10, 20)
+ShoeSize <- c(8, 11, 8)
+@
+<<>>=
+mydata <- data.frame(SnowDepth, Temperature, ShoeSize)
+form <- c(SnowDepth ~ Temperature, SnowDepth ~ ShoeSize)
+models <- lapply(form, function(x) lm(x, data = mydata))
+lapply(models, function(x) x$coef)
+@
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Functions}
+\begin{itemize}
+\item In the previous example, we used temporary \emph{functions} to simplify the code.
+\item A common use of functions is to structure the code into more easily understood pieces, while simultaneously hiding complexity from the code that \emph{calls} the functions.
+\item A major benefit is the reduced need for \emph{copy\&paste}, and the ease of \emph{changing} the global behaviour of a script by only modifying code inside a function.
+\end{itemize}
+<<>>=
+lm_list <- function(x, ...) { # ... are parameters to pass through
+  lapply(x, function(x) lm(x, ...)) # Local variable names override others
+}
+## Use the function:
+models <- lm_list(form, data = mydata)
+lapply(models, function(x) x$coef)
+@
+\end{frame}
+
+
+
+
+
+
+
+
+
+\begin{frame}[fragile]
+\frametitle{Computational cost}
+\begin{itemize}
+\item
+For large models, computational speed and memory usage are vital issues.
+\item Choosing the right algorithm can mean the difference of waiting for a few seconds and waiting for several weeks!
+\item Example: $X$ is a $n$-by-$m$ matrix, $n > m$. Compute the SVD and QR factorisations.
+\end{itemize}
+<<echo=FALSE>>=
+library(microbenchmark)
+@
+<<cache=TRUE, echo=FALSE>>=
+M <- NULL
+for (n in c(1000, 5000,  10000)) {
+  for (m in c(10, 50, 100)) {
+    X <- matrix(rnorm(n * m), n, m)
+    M <- rbind(M,
+               cbind(
+                 microbenchmark::microbenchmark(
+                   svd(X),
+                   qr(X),
+                   chol(t(X) %*% X),
+                   unit = "milliseconds"
+                 ),
+                 data.frame(n = n , m = m)))
+  }
+}
+class(M) <- c("microbenchmark", "data.frame")
+@
+<<echo=FALSE,fig.height=3,fig.width=8,out.width="0.8\\linewidth",out.height="0.3\\linewidth">>=
+suppressPackageStartupMessages(library(tidyverse))
+library(ggplot2)
+M2 <- M %>% group_by(expr, n, m) %>% summarise(time = mean(time), .groups = "drop") %>% filter(expr != "chol(t(X) %*% X)")
+ggplot(M2, aes(x = m^2*n, y = time, col = expr)) +
+  geom_line(aes(linetype = expr)) +
+  xlab("m^2 n") +
+  ylab("Time")
+@
+Both methods take $\propto m^2 n$ operations to compute, but QR is consistently around a factor 3 faster than SVD.
+
+In R, the \code{lm()} function uses QR decomposition internally to solve a least squares problem.
+\end{frame}
+%\begin{frame}[fragile]
+%\frametitle{Computational cost}
+%<<echo=FALSE>>=
+%ggplot(M2, aes(x = m^2 * n, y = time, col = expr)) +
+%  geom_line(aes(linetype = expr)) +
+%  scale_x_log10() +
+%  scale_y_log10() +
+%  xlab("m^2 n") +
+%  ylab("Time")
+%@
+%Both methods take $\propto n^3$ operations to compute for a wide range of least squares problems, but QR %is consistently around a factor 3 faster than SVD.
+%
+%In R, the \code{lm()} function uses QR decomposition internally.
+%
+%As a bonus, the matrix $\mv{Q}$ isn't needed explicitly. Only the information needed to compute $\mv{Q}^\top\mv{y}$ and $\mv{R}$ is used, with can lead to potential speedups.
+%\end{frame}
+<<echo=FALSE,eval=FALSE>>=
+## For a lab??
+rbind(
+  system.time({svd(X)}),
+  system.time({qr(X)}),
+  system.time({chol(t(X) %*% X)})
+)
+@
+
+
+
+
+\end{document}

@@ -1,0 +1,102 @@
+---
+title: "RMarkdown demonstration"
+author: "Finn Lindgren"
+output:
+  html_document:
+    number_sections: yes
+header-includes:
+  - \newcommand{\bm}[1]{\boldsymbol{#1}}
+  - \newcommand{\mat}[1]{\begin{bmatrix}#1\end{bmatrix}}
+---
+
+```{r setup, include = FALSE}
+# Set default code chunk options
+knitr::opts_chunk$set(
+  echo = FALSE
+)
+
+suppressPackageStartupMessages(library(tidyverse))
+theme_set(theme_bw())
+```
+
+# This is a heading
+
+RMarkdown documents combine regular text with R _code chunks_, and
+partial LaTeX equation support.
+
+The following is an R code "chunk". Any output from running the code
+will be typeset as well.
+
+```{r}
+cos(1)
+```
+
+We can include code from script files, optionally without showing it.
+```{r external-code, code=readLines("my_code.R"), eval=TRUE}
+```
+
+The output of R code can also be included in lines of text, like
+$\sin(1)=`r sin(1)`$. Note: RMarkdown is sometimes picky about
+whitespace; in this example, eliminating whitespace and having the R
+code start on a new line turned out to be the safest option.
+
+## This is a sub-heading
+
+This is some more text with a simple mathematical formula,
+$y_i = \beta_0 + x_i \beta_1 + \epsilon_i$. The mathematical formula
+syntax is essentially a subset of the powerful LaTeX notation. Larger
+formulas can be "displayed", using `$$` instead of `$`. For example,
+$$
+y_i = \beta_0 + \sum_{k=1}^p X_{ik} \beta_k + \epsilon_i ,
+$$
+is displayed on a line of its own.
+
+In matrix form, the equation can be written
+$$
+\bm{y} = \bm{X}\bm{\beta} + \bm{\epsilon} ,
+$$
+where
+$$
+\bm{X} = \mat{
+1 & X_{11} & \dots & X_{1p} \\
+\vdots & \vdots & \ddots & \vdots \\
+1 & X_{n1} & \dots & X_{np}
+}
+$$
+
+
+A blank line gives a new paragraph.
+
+If we only want the result of a chunk of R code to be seen, we can add
+special instructions in a comment at the beginning of the code chunk.
+See <https://yihui.name/knitr/options/> for a list of all the available
+options!
+
+```{r echo=FALSE}
+sin(1)
+```
+
+The `echo=FALSE` option can be useful for hiding code where we only want
+to show the result of a computation, and note the code itself. Another
+useful option is `eval=FALSE`, which can be used for chunks of code that
+should be shown but not run, perhaps to illustrate a programming error,
+which RMarkdown would otherwise complain about:
+
+```{r echo=TRUE,eval=FALSE}
+curve(cos x, 0, 1)
+```
+
+We can also include R generated figures:
+
+```{r myplot, echo=FALSE}
+ggplot(data.frame(x = seq(1e-3, pi, length.out = 1000)) %>%
+         mutate(fun = cos(pi / x))) +
+  geom_line(aes(x, fun))
+```
+
+# Code appendix
+
+We can show (and optionally run) code from earlier code chunks:
+
+```{r ref.label="myplot", echo=TRUE, eval=FALSE}
+```
