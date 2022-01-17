@@ -36,14 +36,14 @@ if (solutions) {
   \item Course organiser and Lecturer:\\
   Finn Lindgren, \texttt{finn.lindgren@ed.ac.uk}
   \item Additional computer lab tutors:\\
-  Simon Taylor, Jinlu Liu, Dimitrios Doudesis
-  \item Computer labs: w1--4 and w6--9, Wed 09:00--11:00 or 15:30--17:30\\
-  Zoom
-  \item Office Hours/Live Demonstrations: every week, Thursdays 13:00-14:00\\
+  Niamh Graham, Mary Llewellyn, Man Ho Suen, Konstantinos Tsampourakis
+  \item Computer labs: w1--4 and w6--9, Thu 09:00--10:50 and 11:10--13:00\\
+  Rooms: JCMB 5205 and 6301 (see timetable/group assignments)
+  \item Q\&A\&Demonstrations: every week, Fridays 11:10-12:00\\
   Zoom
   \item Coursework (see details on Learn):\\
   w2,4,7,9 (5\% each)\\
-  w4--6 (40\%), w9--"12" (40\%)
+  w4(Fri)--w7(Mon) (40\%), w9(Fri)--w"13"(Mon) (40\%)
   \end{itemize}
 \end{frame}
 
@@ -66,9 +66,10 @@ if (solutions) {
 
 
 \begin{frame}
-\frametitle{RStudio recommendations}
+\frametitle{R/RStudio recommendations}
 \begin{itemize}
-\item Use R version 3.6.1 or later. Available on lab computers. Free to download for laptops:\\
+\item Go to Technical Setup in the Learn Course Materials and follow the instructions.
+\item Use R version 4.1.2. Via rstudio.cloud, or free to download:\\
 \url{https://www.r-project.org/}\\
 \url{https://rstudio.com/}
 \item Use \emph{projects} (\emph{Organisation})
@@ -271,7 +272,7 @@ x[[name]]
 \end{itemize}
 \item Useful helper functions:\\
 Data range: \code{range(x)} $=[\min(x_i),\max(x_i)]$\\
-Sequences: \code{seq(\!\emph{start}, \!\emph{end}, length.out=\!\emph{length})}
+Sequences: \code{seq(\!\emph{start}, \!\emph{end}, length.out = \!\emph{length})}
 \item Add points or lines to an existing figure:\\
 \code{points(x, y, ...)},
 \code{lines(x, y, ...)}\\
@@ -296,7 +297,7 @@ Sequences: \code{seq(\!\emph{start}, \!\emph{end}, length.out=\!\emph{length})}
 \item Override default plot title:\\ \code{ggplot(...) + ... + ggtitle("Snow depth on Ben Nevis")}
 \end{itemize}
 \item Useful helper function:\\
-Sequences: \code{seq(\!\emph{start}, \!\emph{end}, length.out=\!\emph{length})}
+Sequences: \code{seq(\!\emph{start}, \!\emph{end}, length.out = \!\emph{length})}
 \item Add points or lines to a figure:\\
 \code{+ geom\_point(mapping = aes(x, y))}\\
 \code{+ geom\_line(...)}\\
