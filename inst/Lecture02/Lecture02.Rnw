@@ -243,6 +243,13 @@ The expected Hessian is diagonal with positive elements (so clearly positive def
 
 
 
+\begin{frame}
+\frametitle{Introduction to simulation studies (see separate video)}
+\centerline{\includegraphics[width=\linewidth]{W2_simulation_studies_intro.pdf}}
+\end{frame}
+
+
+
 
 \end{document}
 
@@ -337,9 +344,6 @@ abline(v = minim2.0(x0), col = 2)
 abline(v = (.Machine$double.eps*24*(2+x00))^(1/4), col = 2, lty = 2)
 @
 \end{frame}
-
-
-
 
 
 \end{document}

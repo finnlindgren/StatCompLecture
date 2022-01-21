@@ -1,0 +1,132 @@
+\usepackage{amsmath}
+\usepackage{amssymb,amsthm,color,array,pdfpages,graphicx,functan}
+\usepackage{bm} %% Bold math!
+\usepackage{comment}
+\usepackage{hyperref}
+\graphicspath{{./}{figs/}{boardfigs/}}
+
+\definecolor{lightblue}{rgb}{0.5,0.8,0.9}
+\definecolor{otherblue}{rgb}{0.035294,0.274510,0.521569}
+
+\usepackage{etoolbox}
+% Toggle for "by hand"
+\newtoggle{byhand}
+\togglefalse{byhand}
+\newcommand{\ifbyhand}[1]{\iftoggle{byhand}{#1}{}}
+% Toggle for "for solutions only"
+\newtoggle{solutions}
+\togglefalse{solutions}
+\newcommand{\ifsolutions}[1]{\iftoggle{solutions}{#1}{}}
+\newtoggle{questions}
+\togglefalse{questions}
+\newcommand{\ifquestions}[1]{\iftoggle{questions}{#1}{}}
+% Support for verbatim:
+% \iftoggleverb{solutions}
+% ...
+% \else
+% ...
+% \fi
+% From https://tex.stackexchange.com/questions/78684/etoolboxs-iftoggle-vs-verbatim
+\makeatletter
+\newcommand{\iftoggleverb}[1]{%
+  \ifcsdef{etb@tgl@#1}
+    {\csname etb@tgl@#1\endcsname\iftrue\iffalse}
+    {\etb@noglobal\etb@err@notoggle{#1}\iffalse}%
+}
+\makeatother
+%%%%%%%%%%%%%%%%
+
+%% Allow redefining the abstract title
+\patchcmd{\abstract}{Abstract}{\abstractname}{}{}
+
+
+
+\newcommand{\proper}[1]{\text{#1}}
+\newcommand{\pP}{\proper{P}}
+\newcommand{\pE}{\proper{E}}
+\newcommand{\pV}{\proper{Var}}
+\newcommand{\pC}{\proper{Cov}}
+\newcommand{\pVar}{\proper{Var}}
+\newcommand{\pCov}{\proper{Cov}}
+\newcommand{\pPrec}{\proper{Prec}}
+\newcommand{\pD}{\proper{D}}
+\newcommand{\pd}{\proper{d}}
+\newcommand{\pBias}{\proper{Bias}}
+\newcommand{\pb}{\proper{b}}
+\newcommand{\pRelEff}{\proper{RelEff}}
+\newcommand{\pML}{\proper{ML}}
+\newcommand{\pCI}{\proper{CI}}
+
+\newcommand{\distrib}[1]{\text{#1}}
+\newcommand{\pN}{\distrib{N}}
+\newcommand{\pBin}{\distrib{Bin}}
+\newcommand{\pBern}{\distrib{Bernoulli}}
+\newcommand{\pPo}{\distrib{Pois}}
+\newcommand{\pExp}{\distrib{Exp}}
+\newcommand{\pGamma}{\distrib{Gamma}}
+\newcommand{\pUnif}{\distrib{Unif}}
+\newcommand{\pMultinom}{\distrib{Multinomial}}
+\newcommand{\pIsing}{\distrib{Ising}}
+\newcommand{\pBeta}{\distrib{Beta}}
+\newcommand{\pGeom}{\distrib{Geometric}}
+
+\newcommand{\pAIC}{\textsf{AIC}}
+\newcommand{\pKLD}{{\ensuremath D_{\textsf{KL}}}}
+\newcommand{\pACF}{\textsf{ACF}}
+
+\newcommand{\pSE}{\proper{SE}}
+\newcommand{\pAE}{\proper{AE}}
+\newcommand{\pMAE}{\proper{MAE}}
+\newcommand{\pMSE}{\proper{MSE}}
+\newcommand{\pCRPS}{\proper{CRPS}}
+
+\newcommand{\argmax}{\operatornamewithlimits{argmax}}
+\newcommand{\bx}{\bar{x}}
+\newcommand{\mv}[1]{\bm{#1}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\II}{\mathbb{I}}
+\newcommand{\wh}[1]{\widehat{#1}}
+\newcommand{\wt}[1]{\widetilde{#1}}
+\newcommand{\ol}[1]{\overline{#1}}
+\newcommand{\mmd}{\mathrm{d}}
+\newcommand{\md}{\;\mmd}
+
+\newcommand{\E}{\mathcal{E}}
+\newcommand{\I}{\mv{\mathcal{I}}}
+
+\newcommand{\trsp}{\top}
+\newcommand{\ts}{^{\top}} %transposition
+\newcommand{\its}{^{\sf -\top}}
+
+
+\newcommand{\mat}[1]{\begin{bmatrix}#1\end{bmatrix}}
+
+%% Graphs
+\newcommand{\GG}{{\mathcal{G}}}
+\newcommand{\VV}{{\mathcal{V}}}
+\newcommand{\EE}{{\mathcal{E}}}
+\newcommand{\NN}{{\mathcal{N}}}
+\newcommand{\CC}{{\mathcal{C}}}
+\DeclareMathOperator{\pa}{pa}
+\DeclareMathOperator{\anc}{anc}
+\DeclareMathOperator{\sib}{sib}
+\DeclareMathOperator{\children}{chi}
+\DeclareMathOperator{\cop}{cop}
+\DeclareMathOperator{\blanket}{bla}
+
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\sign}{sign}
+\DeclareMathOperator{\comp}{comp}
+\DeclareMathOperator{\colspan}{span}
+
+\newcommand{\scal}[2]{\scalprod{}{#1}{#2}}
+\newcommand{\scalm}[4][]{{\scalprod*{#4}{#2}{#3}^{#1}}}
+\newcommand{\scalb}[4][]{\scalm[\!#1]{#2}{#3}{\!#4}}
+\newcommand{\scalbb}[4][]{\scalm[\!\!#1]{#2}{#3}{\!\!#4}}
+
+\newcommand{\QQ}{{\mathcal{Q}}}
+
+\newcommand{\code}[1]{{\color{otherblue}\texttt{#1}}}
+
+\newcommand{\Ordo}{{\mathcal{O}}}

@@ -111,3 +111,4 @@ ggplot(data %>% pivot_longer(-x)) +
 ggplot(data %>% pivot_longer(-x)) +
   geom_line(aes(x, value)) +
   facet_wrap(vars(name))
+
