@@ -64,6 +64,12 @@ if (solutions) {
 \end{frame}
 
 
+\begin{frame}
+\vfill
+\centerline{\LARGE Bayesian statistics}
+\vfill
+\end{frame}
+
 
 
 \begin{frame}
@@ -213,7 +219,9 @@ HPD region constructions are not invariant under reparameterisation.
 
 
 \begin{frame}
-\frametitle{~~~}
+\vfill
+\centerline{\LARGE Numerical integration}
+\vfill
 \end{frame}
 
 

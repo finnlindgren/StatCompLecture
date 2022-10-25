@@ -141,7 +141,7 @@ x_obs <- runif(n)
 Z_obs <- model_Z(x_obs)
 theta_true <- c(1, -2, -2, 4)
 y_obs <- rnorm(n = n, mean = Z_obs$ZE %*% theta_true, sd = exp(Z_obs$ZV %*% theta_true)^0.5)
-plot(x_obs, y_obs)
+ggplot() + geom_point(aes(x_obs, y_obs))
 @
 Treating the simulated data as our observed sample, we estimate the paramter vector $\mv{\theta}$ using \code{optim()}:
 <<>>=
@@ -752,6 +752,211 @@ S_\text{DS}(F,y)-S_\text{DS}(G,y) &=
 \right]
 \end{align}
 
+%\end{document}
+
+\subsection{AE}
+
+Assume $F$ and $G$ are Gaussian. The integral was derived by the online Integral Calculator, \url{https://www.integral-calculator.com/}
+\begin{align}
+\pE_{y\sim G}(S_\text{AE}(F,y)) &=
+\pE_{y\sim G}(|y-\mu_F|)
+=
+\int_{-\infty}^\infty |y-\mu_F| \frac{1}{\sigma_G\sqrt{2\pi}}\exp\left(
+-\frac{(y-\mu_G)^2}{2\sigma_G^2}\right)
+\\&=
+\int_{-\infty}^\infty |x| \frac{1}{\sigma_G\sqrt{2\pi}}\exp\left(
+-\frac{(x-\mu_G+\mu_F)^2}{2\sigma_G^2}\right)
+\\&=
+\frac{2^{3/2}\sigma_G\Gamma\left(1,\frac{(\mu_G-\mu_F)^2}{2\sigma_G^2}\right)
++
+|\mu_G-\mu_F|\left[2\sqrt{\pi}-2\Gamma\left(\frac{1}{2},\frac{(\mu_G-\mu_F)^2}{2\sigma_G^2}\right)
+\right]}{2\sqrt{\pi}}
+\\&=
+|\mu_G-\mu_F|
+\left[1-\frac{1}{\sqrt{\pi}}\Gamma\left(\frac{1}{2},\frac{(\mu_G-\mu_F)^2}{2\sigma_G^2}\right)
+\right]
++
+\sigma_G\sqrt{\frac{2}{\pi}} \Gamma\left(1,\frac{(\mu_G-\mu_F)^2}{2\sigma_G^2}\right),
+\end{align}
+where $\Gamma(a,x)=\int_x^\infty t^{a-1}\exp(-t)\, \mathrm{d}t$, with R code
+<<eval=FALSE>>=
+gamma(a) * pgamma(x, a, lower = FALSE)
+@
+
+\begin{align}
+\pE_{y\sim G}(|y-\mu_F|^2) &=
+\sigma_G^2+(\mu_G-\mu_F)^2
+\\
+\pVar_{y\sim G}(|y-\mu_F|) &=
+\pE_{y\sim G}(|y-\mu_F|^2) -
+\pE_{y\sim G}(|y-\mu_F|)^2
+\end{align}
+
+
+
+
+
+
+
+
+\subsection{Distribution of score differences (new version)}
+
+The scores for different predictors applied to the same data are dependent,
+even if the dependence is only due to them being applied to the exact same
+data point. Instead of trying to adapt the individual score distributions,
+we therefore directly examine the distributions of pairwise score differences.
+
+\subsubsection{SE}
+
+Expectation and variance of $S_\text{SE}(F,y)$ under $y\sim G$:
+\begin{align}
+\pE_{y\sim G}\left[S_\text{SE}(F,y)\right] &= \sigma_G^2 + (\mu_G-\mu_F)^2 \\
+\pVar_{y\sim G}\left[S_\text{SE}(F,y)\right] &=
+\pE_{y\sim G}\left\{\left[(y-\mu_F)^2 - \sigma_G^2 - (\mu_G-\mu_F)^2\right]^2\right\}
+\\&=
+\pE_{y\sim G}\left\{
+\left[(y-\mu_G+\mu_G-\mu_F)^2 - \sigma_G^2 - (\mu_G-\mu_F)^2\right]^2
+\right\}
+\\&=
+\pE_{y\sim G}\left\{
+\left[(y-\mu_G)^2+2(y-\mu_G)(\mu_G-\mu_F) - \sigma_G^2\right]^2
+\right\}
+\\&=
+\pE_{y\sim G}\left\{
+(y-\mu_G)^4+4(y-\mu_G)^3(\mu_G-\mu_F) + \sigma_G^4 + 4(y-\mu_G)^2(\mu_G-\mu_F)^2
+\right.
+\\&\left.\phantom{= \pE_{y\sim G}\left\{\right.}
+- 2\sigma_G^2(y-\mu_G)^2 - 4\sigma_G^2(y-\mu_G)(\mu_G-\mu_F)
+\right\}
+\\&= 3\sigma_G^4 + \sigma_G^4 + 4\sigma_G^2(\mu_G-\mu_F)^2 - 2\sigma_G^4
+\\&= 2\sigma_G^4\left[1 + 2\left(\frac{\mu_G-\mu_F}{\sigma_G}\right)^2\right]
+\end{align}
+
+Expectation and variance of $S_\text{SE}(F^A,y)-S_\text{SE}(F^B,y)$ under $y\sim G$:
+\begin{align}
+S_\text{SE}(F^A,y)-S_\text{SE}(F^B,y) &= (y-\mu_A)^2 - (y-\mu_B)^2
+\\&= -2y(\mu_A-\mu_B) + \mu_A^2 - \mu_B^2
+\\&= (\mu_A+\mu_B - 2y)(\mu_A-\mu_B)
+\\&= 2\left(y-\frac{\mu_B+\mu_A}{2}\right)(\mu_B-\mu_A) \\
+\pE_{y\sim G}\left[S_\text{SE}(F^A,y)-S_\text{SE}(F^B,y)\right] &=
+2\left(\mu_G-\frac{\mu_B+\mu_A}{2}\right)(\mu_B-\mu_A) \\
+\pVar_{y\sim G}\left[S_\text{SE}(F^A,y)-S_\text{SE}(F^B,y)\right] &=
+4\sigma_G^2 (\mu_B-\mu_A)^2
+\end{align}
+
+
+\subsubsection{DS}
+
+Expectation and variance of $S_\text{DS}(F,y)=\frac{(y-\mu_F)^2}{\sigma_F^2}+\log(\sigma_F^2)$ under $y\sim G$:
+\begin{align}
+S_\text{DS}(F,y)&=
+\frac{(y-\mu_F)^2}{\sigma_F^2}+\log(\sigma_F^2)
+\\&=
+\frac{(y-\mu_G)^2 + 2(y-\mu_G)(\mu_G-\mu_F) + (\mu_G-\mu_F)^2}{\sigma_F^2}+\log(\sigma_F^2)
+\\
+\pE_{y\sim G}\left[S_\text{DS}(F,y)\right] &= \frac{\sigma_G^2 + (\mu_G-\mu_F)^2}{\sigma_F^2} +
+\log(\sigma_F^2) \\
+\pVar_{y\sim G}\left[S_\text{DS}(F,y)\right] &=
+\pE_{y\sim G}\left[\left\{
+S_\text{DS}(F,y)-\pE_{y\sim G}\left[S_\text{DS}(F,y)\right]
+\right\}^2\right]
+\\&=
+2\frac{\sigma_G^4}{\sigma_F^4}\left[1 + 2\left(\frac{\mu_G-\mu_F}{\sigma_G}\right)^2\right]
+\end{align}
+
+Expectation and variance of $S_\text{DS}(F^A,y)-S_\text{DS}(F^B,y)$ under $y\sim G$:
+\begin{align}
+S_\text{DS}(F^A,y)-S_\text{DS}(F^B,y) &=
+\frac{(y-\mu_A)^2}{\sigma_A^2} - \frac{(y-\mu_B)^2}{\sigma_B^2} +
+\log\left(\frac{\sigma_A^2}{\sigma_B^2}\right)
+\\&=
+\frac{(y-\mu_G)^2 + 2(y-\mu_G)(\mu_G-\mu_A)+(\mu_G-\mu_A)^2}{\sigma_A^2}
+\\&\phantom{=}-
+\frac{(y-\mu_G)^2 + 2(y-\mu_G)(\mu_G-\mu_B)+(\mu_G-\mu_B)^2}{\sigma_B^2} -
+\log\left(\frac{\sigma_A^2}{\sigma_B^2}\right)
+\\
+\pE_{y\sim G}\left[S_\text{DS}(F^A,y)-S_\text{DS}(F^B,y)\right] &=
+\frac{\sigma_G^2 + (\mu_G-\mu_A)^2}{\sigma_A^2}
+-
+\frac{\sigma_G^2 + (\mu_G-\mu_B)^2}{\sigma_B^2}
++ \log\left(\frac{\sigma_A}{\sigma_B^2}\right)
+\end{align}
+For the variance,
+\begin{align}
+\pVar_{y\sim G}&\left[S_\text{DS}(F^A,y) - S_\text{DS}(F^B,y)\right] \\
+&=
+\pE_{y\sim G}\left\{
+\left[
+\frac{(y-\mu_G)^2 + 2(y-\mu_G)(\mu_G-\mu_A)}{\sigma_A^2}
+-
+\frac{(y-\mu_G)^2 + 2(y-\mu_G)(\mu_G-\mu_B)}{\sigma_B^2}
+-
+\frac{\sigma_G^2}{\sigma_A^2}
++
+\frac{\sigma_G^2}{\sigma_B^2}
+\right]^2
+\right\}
+\\&=
+\pE_{y\sim G}\left\{
+\left[
+(y-\mu_G)^2\left(\frac{1}{\sigma_A^2}-\frac{1}{\sigma_B^2}\right) +
+2(y-\mu_G)\left(\frac{\mu_G-\mu_A}{\sigma_A^2} - \frac{\mu_G-\mu_B}{\sigma_B^2}\right)
+-
+\sigma_G^2\left(\frac{1}{\sigma_A^2}-\frac{1}{\sigma_B^2}\right)
+\right]^2
+\right\}
+\\&=
+\text{[$\sigma_{AB}=1/\sigma_A^2-1/\sigma_B^2$, $\mu_{AB}=\frac{\mu_A}{\sigma_A^2} - \frac{\mu_B}{\sigma_B^2}$]}
+\\&=
+\pE_{y\sim G}\left[
+(y-\mu_G)^4 \sigma_{AB}^2
+\right]
+\\&\phantom{= }
++
+\pE_{y\sim G}\left\{
+(y-\mu_G)^3
+4\sigma_{AB}(\mu_G\sigma_{AB}-\mu_{AB})
+\right\}
+\\&\phantom{=}+
+\pE_{y\sim G}\left\{
+(y-\mu_G)^2
+\left[
+4(\mu_G\sigma_{AB}-\mu_{AB})^2
+-
+2\sigma_G^2\sigma_{AB}^2
+\right]
+\right\}
+\\&\phantom{= }
+-
+\pE_{y\sim G}\left\{
+4(y-\mu_G)
+(\mu_G\sigma_{AB}-\mu_{AB})\sigma_G^2\sigma_{AB}
+\right\}
+\\&\phantom{= }
++
+\sigma_G^4\sigma_{AB}^2
+\end{align}
+Define the skewness $s_G=\pE\{\frac{(y-\mu_G)^3}{\sigma_G^3}\}$ and kurtosis
+$k_G=\pE\{\frac{(y-\mu_G)^4}{\sigma_G^4}\}\geq s_G^2+1$.
+Then
+\begin{align}
+\pVar_{y\sim G}&\left[S_\text{DS}(F^A,y) - S_\text{DS}(F^B,y)\right] \\
+&=
+k_G\sigma_G^4\sigma_{AB}^2
++
+4s_G\sigma_G^3
+\sigma_{AB}(\mu_G\sigma_{AB}-\mu_{AB})
+\\&\phantom{=}+
+\sigma_G^2
+\left[
+4(\mu_G\sigma_{AB}-\mu_{AB})^2
+-
+2\sigma_G^2\sigma_{AB}^2
+\right]
++
+\sigma_G^4\sigma_{AB}^2
+\end{align}
+
 \end{document}
 
 \subsection{AE}
@@ -791,5 +996,7 @@ gamma(a) * pgamma(x, a, lower = FALSE)
 \pE_{y\sim G}(|y-\mu_F|^2) -
 \pE_{y\sim G}(|y-\mu_F|)^2
 \end{align}
+
+
 
 \end{document}

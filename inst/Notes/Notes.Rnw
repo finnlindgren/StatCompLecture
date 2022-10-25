@@ -1,0 +1,316 @@
+\documentclass[10pt]{report}
+\usepackage[utf8]{inputenc}
+\usepackage{times}
+\usepackage[authoryear]{natbib}
+
+\input{../Lecture04/common.tex}
+\textwidth=185mm
+\setlength{\oddsidemargin}{-10mm}
+\setlength{\evensidemargin}{-10mm}
+\renewcommand{\abstractname}{Summary}
+
+\newcommand{\pGPD}{\proper{GPD}}
+\newcommand{\RR}{\mathbb{R}}
+
+<<echo=FALSE>>=
+solutions <- FALSE
+opts_chunk$set(
+  fig.path = "figure/scores-",
+  fig.align = "center",
+  fig.show = "hold",
+  size = "small",
+  fig.width = 8,
+  fig.height = 5.2,
+  out.width = "\\linewidth",
+  out.height = "0.65\\linewidth"
+)
+set.seed(12345L)
+suppressPackageStartupMessages(library(tidyverse))
+theme_set(theme_bw())
+@
+
+\title{Further statistical computing lecture notes}
+\author{Finn Lindgren}
+\begin{document}
+\maketitle
+\tableofcontents
+
+\chapter{Importance sampling}
+
+Let $x$ denote a random variable with pmf or pdf $p(\cdot)$, i.e. $x\sim p(\cdot)$.
+We want to evaluate $\mu_f=\pE_{x\sim p(\cdot)}[f(x)]$ for some function $f(\cdot)$.
+Assume that we're able to sample from some other distribution with pmf/pdf $\wt{p}(\cdot)$
+such that $\wt{p}(x)>0$ where $p(x)>0$.
+
+\section{Basic importance sampling estimators}
+
+Under the given assumptions,
+\begin{align}
+\pE_{x\sim p}[f(x)] &=
+\int f(x) p(x)\md x =
+\int f(x) \frac{p(x)}{\wt{p}(x)} \wt{p}(x)\md x =
+\pE_{x\sim \wt{p}}\left[f(x)\frac{p(x)}{\wt{p}(x)}\right] .
+\end{align}
+Given samples $x_k\sim\wt{p}(\cdot)$, $k=1,\dots,N$, define the \emph{importance ratios}
+\begin{align}
+r_k &= \frac{p(x_k)}{\wt{p}(x_k)} .
+\end{align}
+This would motivate the importance estimator
+\begin{align}
+\wh{\mu}_f &= \frac{1}{N} \sum_k w_k f(x_k) ,
+\end{align}
+where the importance weights are defined as $w_k=r_k$.
+To allow for the case when the normalisation constant for $p(\cdot)$ is unknown,
+we first note that $\sum_{k=1}^N \pE_{x_k\sim\wt{p}}(w_k)=N$ when the normalisation is known.
+Let $p^*(x)=C p(x)$ denote a computable version of the target pmf/pdf with an unknown
+scaling constant $C$. The unnormalised importance weights become
+\begin{align}
+w^*_k &= r^*_k = \frac{p^*(x_k)}{\wt{p}(x_k)} = \frac{C p(x_k)}{\wt{p}(x_k)} = C r_k .
+\end{align}
+We see that the \emph{self-normalised} weights
+\begin{align}
+\wt{w}_k =
+\frac{w^*_k}{\sum_{i=1}^N w^*_i} =
+\frac{C r_k}{\sum_{i=1}^N C r_i} =
+\frac{r_k}{\sum_{i=1}^N r_i}
+\end{align}
+are invariant to the unknown scaling constant $C$.
+The self-normalised importance estimator is then defined by
+\begin{align}
+\wh{\mu}_f &= \sum_k \wt{w}_k f(x_k) = \frac{\sum_k w^*_k f(x_k)}{\sum_i w^*_i}
+\end{align}
+
+\subsection{Variance estimator, and estimator variance}
+
+In order to estimate the variance $\sigma^2_f=\pVar_{x\sim p}[f(x)]$, we note that
+$\sigma^2_f=\pE_{x\sim p}\{[f(x)-\mu_f]^2\}$, which leads to the estimator
+\begin{align}
+\wh{\sigma}^2_f &= \sum_k \wt{w}_k [f(x_k) - \wh{\mu}_f]^2 .
+\end{align}
+How can we estimate the variance of the $\wh{\mu}_f$ estimator, $\pVar(\wh{\mu}_f)$?
+Claim: A reasonable estimator is given by
+\begin{align}
+\wh{\pVar}(\wh{\mu}_f) &= \sum_k \wt{w}_k^2 [f(x_k) - \wh{\mu}_f]^2 .
+\end{align}
+Heuristic motivation: If $\wt{w}_k$ and $f(x_k)-\wh{\mu}_f$ were independent,
+and we could treat $\wt{w}_k$ as fixed values, then
+\begin{align}
+\pVar_{x_k\sim \wt{p}}[\wt{w}_k f(x_k)] &=
+\wt{w}_k^2 \pVar_{x_k\sim \wt{p}}[f(x_k)].
+\end{align}
+
+\subsection{Effective number of samples}
+
+If we had independent samples from $x \sim p(\cdot)$, then
+\begin{align}
+\wh{\pVar}_{p}\left[\frac{1}{N}\sum_{k=1}^N f(x_k)\right] &= \frac{\wh{\sigma}^2_f}{N} .
+\end{align}
+What value $N_\text{eff}$ (\emph{effective number of samples)}
+would give the same variance for the importance sampling estimator?
+\begin{align}
+\frac{\wh{\sigma}^2_f}{N_\text{eff}} &=
+\wh{\pVar}_{\wt{p}}(\wh{\mu}_f) \\
+N_\text{eff} &= \frac{\wh{\sigma}^2_f}{\wh{\pVar}_{\wt{p}}(\wh{\mu}_f)}
+=
+\frac{\sum_{k=1}^N \wt{w}_k \left[f(x_k) - \wh{\mu}_f\right]^2}{
+\sum_{k=1}^N \wt{w}_k^2 \left[f(x_k) - \wh{\mu}_f\right]^2} .
+\end{align}
+Again, using the heuristic approximation of independence between the weights and
+function values, we can define a target-independent $N_\text{eff}$ value,
+\begin{align}
+N^0_\text{eff} &= \frac{\sum_{k=1}^N \wt{w}_k}{\sum_{k=1}^N \wt{w}_k^2} =
+\frac{1}{\sum_{k=1}^N \wt{w}_k^2}
+\quad\text{or}\quad
+\frac{\left(\sum_{k=1}^N {w}_k\right)^2}{\sum_{k=1}^N {w}_k^2} .
+\end{align}
+
+\subsection{Improving basic sampling distributions}
+
+One approach to importance sampling is to adapt a tractable model to the
+mode of the target density, and use that approximation as a sampling distribution.
+We saw this in Tutorial 4 and Project 1, where a $\pN(\bm{\mu},\bm{\Sigma})$
+distribution was used as approximation of an intractable posterior distribution.
+
+A potential problem with this approach is when the sampling distribution
+has less probability mass than the target distribution in some region, typically
+in the tail of the distribution.
+This causes some of the importance weights to be large, and the resulting
+estimators will have large variance (and small effective number of samples,
+$N_\text{eff}$).  If the sampling and target tail decay towards zero with the
+same overall rate, this can often be overcome by scaling the sampling distribution
+variance, e.g.\ with $\pN(\bm{\mu},1.2\cdot\bm{\Sigma})$ in the Gaussian mode
+approximation case.  However, when such simple modifications aren't available
+or practical, an alternative approach is to model the importance weights themselves,
+as shown in Section~\ref{sec:PSIS}.
+
+
+\section{Pareto smoothed importance sampling}
+\label{sec:PSIS}
+
+Importance sampling estimators can suffer from large variability due to a few large
+weights dominating the computations.  In order to alleviate this problem,
+\citet{vehtari_pareto_2021} introduced a method for "smoothing" the weights,
+by replacing the largest importance ratios with weights computed from a
+Generalised Pareto tail distribution model. The resulting method is called
+\emph{Pareto smoothed importance sampling} (PSIS)
+
+The Generalised Pareto distribution (GPD) appears statistical \emph{extreme value theory},
+where it is used to model the tail behaviour of data. One such method is to consider
+the conditional distribution of a random variable above a given level $m$,
+via $\pP(X \leq x \mid X>m)$. A random variable $X$ with a generalised Pareto distribution
+$\pGPD(m,\sigma,k)$, where $m\in\RR$ is a location parameter, $\sigma>0$ is a scale parameter,
+and $k\in\RR$ is a shape parameter, has cumulative distribution function (cdf)
+$$
+\pP(X \leq x) =
+F(x;m,\sigma,k) = 1 - \left(1 + k \frac{x - m}{\sigma}\right)^{-1/k},
+\quad \begin{cases}
+\text{for $m \leq x$} & \text{when $k \geq 0$,} \\
+\text{for $m \leq x \leq m - \sigma/k$} & \text{when $k < 0$.}
+\end{cases}
+$$
+The \emph{quantiles} of the GPD can be obtained from the inverse of the the cdf,
+\begin{align*}
+x = F^{-1}(v;m,\sigma,k) &= m + k^{-1}\sigma\left[(1-v)^{-k} - 1\right],\quad v\in(0,1) .
+\end{align*}
+The limit case $m=k=0$ is the same as an Exponential distribution with expectation $\sigma$ (rate $1/\sigma$).
+
+In the importance sampling context, the PSIS method considers the importance ratios
+in increasing order, denoted $r_{(i)}$, $i=1,\dots,N$ (these are typically unnormalised importance ratios, but we drop the $r^*$ notation for simplicity) with $r_{(1)}\leq \dots \leq r_{(N)}$.  The set of $M$ largest ratios is then
+modelled with a GPD, with location parameter $m = r_{(N-M)}$, the largest ratio not part of the set.
+The value of $M$ is chosen as $\lceil\min(N/5,3\sqrt{N})\rceil$.
+The estimated scale and shape parameters are are denoted $\wh{\sigma}$ and $\wh{k}$. The unnormalised importance weights
+are then defined to be
+$$
+w^*_{(i)} = \begin{cases}
+r_{(i)} & \text{for $1\leq i \leq N-M$,} \\
+\min\left[r_{(N)},\,
+  F^{-1}\left(v=\frac{i-(N-M) - 1/2}{M}; m=r_{(N-M)}, \sigma=\wh{\sigma}, k=\wh{k}\right)
+  \right] &
+\text{for $N-M < i \leq N$.}
+\end{cases}
+$$
+After reordering the values back to the original indexing, these adjusted $w^*_i$
+values are then used to define self-normalised weights $\wt{w}_i$ in the same way
+as for ordinary importance sampling.
+
+The estimated value $\wh{k}$ can be used as a diagnostic tool, as it is related
+to the variance of the importance ratios. In \citet{vehtari_pareto_2021}, they motivate
+that values of $\wh{k} < 0.7$ generally indicate reliable results, but larger values
+may indicate unreliable results. See the help text \verb!?loo::pareto-k-diagnostic!
+for more details. Install the \verb!loo! with \verb!install.packages("loo")! first.
+
+As a toy example of applying the Pareto smoothing method to (log)-values, we
+call the \verb!loo::psis()! function:
+<<echo=FALSE>>=
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(patchwork))
+set.seed(12345L)
+@
+<<>>=
+df <- data.frame(
+  log_ratios = log(rexp(100, 1)) # Not actual importance ratios, just some random values
+  )
+psis_result <- loo::psis(df$log_ratios, r_eff = 1)
+print(psis_result)
+
+df <- df %>%
+  mutate(log_weights = psis_result$log_weights)
+@
+<<echo=FALSE,fig.width = 8,fig.height = 8,out.width = "\\linewidth",out.height = "\\linewidth">>=
+df <- df %>%
+  mutate(InTail = order(order(log_ratios)) > (n() - loo:::n_pareto(1, n())),
+         Tail = c("Lowest N-M values", "Largest M values")[1 + InTail])
+(
+  ((
+    (
+      ggplot(df, aes(log_ratios, log_weights, color = Tail)) +
+        geom_point() +
+        geom_abline()
+    ) | (
+      ggplot(df, aes(exp(log_ratios), exp(log_weights), color = Tail)) +
+        geom_point() +
+        geom_abline()
+    )
+  )  + plot_layout(guides = "collect")) / ((
+    (
+      ggplot(df) +
+        stat_ecdf(aes(log_ratios, col = "Original")) +
+        stat_ecdf(aes(log_weights, col = "Pareto smoothed"))
+    )
+    |
+    (
+      ggplot(df) +
+        stat_ecdf(aes(exp(log_ratios), col = "Original")) +
+        stat_ecdf(aes(exp(log_weights), col = "Pareto smoothed"))
+    )
+  )  + plot_layout(guides = "collect") & labs(color = "Type", y = "CDF"))
+) +
+  plot_annotation("Importance weights before and after Pareto smoothing") &
+  theme(legend.position = "bottom")
+@
+
+
+
+\chapter{Pseudo-random number generators}
+
+(Text to appear...)
+
+\section{Fundamentals}
+
+\subsection{Linear congruence generators and their limitations}
+
+\subsection{Hidden state generators}
+
+\section{General distributions}
+
+\subsection{CDF inversion}
+
+\subsection{Rejection sampling}
+
+\subsection{Examples: Matlab's uniform and Normal generators}
+
+See separate pdf:s from "Cleve's Corner".
+
+\chapter{Integrating code into report documents}
+
+R code can be both typeset and the results displayed automatically within both Markdown (Rmd file extension) and
+LaTeX documents (Rnw or Rtex file extensions).
+
+\section{Integrating R code chunks into RMarkdown documents}
+
+In RMarkdown, R code chunks are surrounded by a pair of \verb!```{r}! and
+\verb!```! markers, with (optional) chunk label and options included in the
+opeing brackets:
+<<echo=FALSE,results="asis">>=
+cat("\\noindent",
+    "\\verb!```{r label, echo=TRUE}!",
+    "\\verb!cos(1:10)!",
+    "\\verb!```!",
+    sep = "\\\\\n")
+@
+To only typeset the code chunk, use the \verb!eval=FALSE! chunk option. To display
+the results of code inline, use \verb!`r cos(1:10)`! To typeset it instead
+of running it, use \verb!`cos(1:10)`!.
+
+\section{Integrating R code chunks into LaTeX documents}
+
+In RStudio, make sure to set the option
+"Tools"$\rightarrow$"Global~Options"$\rightarrow$"Sweave"$\rightarrow$"Weave~Rnw~files using:"$\rightarrow$"knitr".
+
+In Rnw/LaTeX files, code chunks are surrounded by \verb!<<>>=! and \verb!@! markers,
+and (optional) chunk labels and options can be specified in the same way as in RMarkdown:
+<<echo=FALSE,results="asis">>=
+cat("\\noindent",
+    "\\verb!<<label, echo=TRUE>>=!",
+    "\\verb!cos(1:10)!",
+    "\\verb!@!",
+    sep = "\\\\\n")
+@
+To only typeset the code chunk, use the \verb!eval=FALSE! chunk option. To display
+the results of code inline, use \verb!\!\verb!Sexpr{cos(1:10)}! To typeset it instead
+of running it, one can use e.g.\ \verb|\verb!cos(1:10)!|.
+
+\bibliographystyle{apalike}
+\bibliography{references}
+
+\end{document}
